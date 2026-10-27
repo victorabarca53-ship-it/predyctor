@@ -1,5 +1,5 @@
 // Bump the version when the icons or manifest change.
-const CACHE = 'predyctor-v2';
+const CACHE = 'predyctor-v3';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './favicon.ico', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
