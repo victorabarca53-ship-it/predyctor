@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Predyctor</title>
+  <meta name="description" content="Acecha tus metas. No bajes el ritmo.">
+  <meta name="theme-color" content="#0B2B23">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <style>
+    html, body { margin: 0; height: 100%; background: #0B2B23; }
+    main {
+      height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; color: #F1ECDD; font-family: "Segoe UI", Roboto, system-ui, sans-serif; text-align: center;
+    }
+    img { width: 96px; height: 96px; }
+    .word { font-size: 28px; font-weight: 600; letter-spacing: 0.5px; }
+    .word b { color: #D9A94A; font-weight: 600; }
+    p { margin: 0; color: #A7B9B0; font-size: 14px; }
+    a { color: #EFC977; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="icon-192.png" alt="">
+    <div class="word">pred<b>yctor</b></div>
+    <p>Acecha tus metas. No bajes el ritmo.</p>
+    <a id="entrar" href="#">Entrar</a>
+  </main>
+  <script>
+    // Predyctor runs on Google Apps Script; this page only gives it an installable home screen icon.
+    const APP_URL = 'https://script.google.com/macros/s/AKfycbzJGTDuuUG6g9EjWG_lTVxAdxDhJRCO7GdUVXBjnSrbVp3alROKhaGi90o8S_jaDzA/exec';
+    document.getElementById('entrar').href = APP_URL;
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    // Opened from the home screen icon: go straight to the app.
+    // Opened in a normal tab: stay here so Chrome can offer "Instalar app".
+    const instalada = matchMedia('(display-mode: standalone)').matches;
+    if (instalada) setTimeout(() => location.replace(APP_URL), 400);
+  </script>
+</body>
+</html>
