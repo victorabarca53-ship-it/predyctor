@@ -1,44 +1,736 @@
-<!doctype html>
-<html lang="es-CL">
+<!DOCTYPE html>
+<html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Predyctor</title>
-  <meta name="description" content="Acecha tus metas. No bajes el ritmo.">
-  <meta name="theme-color" content="#0B2B23">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="favicon.ico" sizes="any">
-  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <style>
-    html, body { margin: 0; height: 100%; background: #0B2B23; }
-    main {
-      height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 14px; color: #F1ECDD; font-family: "Segoe UI", Roboto, system-ui, sans-serif; text-align: center;
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Predyctor</title>
+<meta name="description" content="Acecha tus metas. No bajes el ritmo.">
+<meta name="theme-color" content="#f2f3ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101412" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+  /* Sendero: verde bosque + ámbar de linterna; tarjetas sobrias, números grandes */
+  :root {
+    --bg: #f2f3ee;
+    --panel: #ffffff;
+    --panel-2: #f7f8f4;
+    --ink: #1c2420;
+    --muted: #65706a;
+    --line: #e1e5dc;
+    --accent: #2f6f5e;
+    --accent-ink: #ffffff;
+    --amber: #d9822b;
+    --ok: #2e8b57;
+    --warn: #c48912;
+    --bad: #c2453b;
+    --t-trading: #3d6fb6;
+    --t-tienda: #d9822b;
+    --t-pega: #7a5bb5;
+    --t-skool: #2f8f7a;
+    --t-trabajo: #5b6770;
+    --heat-0: #e7eae2;
+    --heat-1: #c6dccf;
+    --heat-2: #8fc0a7;
+    --heat-3: #4f9a7d;
+    --heat-4: #2f6f5e;
+    --font-display: 'Sora', 'Segoe UI', system-ui, sans-serif;
+    --font-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --radius: 14px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101412;
+      --panel: #19201c;
+      --panel-2: #1f2722;
+      --ink: #e7ece9;
+      --muted: #98a39d;
+      --line: #2a332e;
+      --accent: #5fb39a;
+      --accent-ink: #0d1a15;
+      --amber: #e8a256;
+      --ok: #5cc28a;
+      --warn: #e2b04a;
+      --bad: #e3776d;
+      --t-trading: #79a3e0;
+      --t-tienda: #e8a256;
+      --t-pega: #ab90e0;
+      --t-skool: #5fbfa6;
+      --t-trabajo: #a3afb8;
+      --heat-0: #232b26;
+      --heat-1: #2c4a3e;
+      --heat-2: #33705a;
+      --heat-3: #45967a;
+      --heat-4: #5fb39a;
+      color-scheme: dark;
     }
-    img { width: 96px; height: 96px; }
-    .word { font-size: 28px; font-weight: 600; letter-spacing: 0.5px; }
-    .word b { color: #D9A94A; font-weight: 600; }
-    p { margin: 0; color: #A7B9B0; font-size: 14px; }
-    a { color: #EFC977; font-size: 15px; }
-  </style>
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; -webkit-tap-highlight-color: transparent; }
+  body { min-height: 100vh; }
+  button { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  .app { max-width: 520px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(92px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 14px; }
+  h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+  h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: 1rem; font-weight: 600; }
+  .muted { color: var(--muted); }
+  .small { font-size: 0.82rem; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .between { justify-content: space-between; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Encabezado */
+  .top { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
+  .fecha { color: var(--muted); font-size: 0.9rem; }
+  .fecha::first-letter { text-transform: uppercase; }
+  .toca { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 0.9rem; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--accent); }
+
+  /* Agenda */
+  .agenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .agenda li { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); align-items: baseline; }
+  .agenda li:first-child { border-top: 0; }
+  .agenda .hora { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; }
+  .agenda li.pasado { opacity: 0.45; }
+  .agenda li.ahora .titulo { font-weight: 600; }
+  .agenda li.ahora .hora { color: var(--accent); font-weight: 600; }
+  .vacio { color: var(--muted); font-size: 0.9rem; padding: 4px 0; }
+
+  /* Checks */
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; min-height: 88px; transition: background .15s, border-color .15s; }
+  .check .ico { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 0.85rem; }
+  .check .lbl { font-weight: 600; font-size: 0.92rem; }
+  .check .sub { color: var(--muted); font-size: 0.78rem; }
+  .check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .check[aria-pressed="true"] .sub { color: inherit; opacity: 0.8; }
+  .check[aria-pressed="true"] .ico { border-color: currentColor; background: rgba(255,255,255,0.18); }
+  .check:focus-visible, .chip:focus-visible, .btn:focus-visible, .tab:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  .campo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; }
+  .campo label { font-weight: 500; }
+  .campo input[type=number] { width: 92px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font: inherit; text-align: right; font-variant-numeric: tabular-nums; }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .stepper button { width: 40px; height: 38px; border: 0; background: var(--panel-2); cursor: pointer; font-size: 1.1rem; }
+  .stepper span { min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* Racha */
+  .racha-num { font-family: var(--font-display); font-size: 2rem; font-weight: 700; line-height: 1; }
+  .dias { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; }
+  .dias span { aspect-ratio: 1; border-radius: 4px; background: var(--heat-0); }
+
+  /* Estudio */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 8px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; font-size: 0.9rem; }
+  .chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+  .chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .reloj { position: relative; width: min(260px, 70vw); aspect-ratio: 1; margin: 6px auto 0; }
+  .reloj svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .reloj .pista { fill: none; stroke: var(--line); stroke-width: 10; }
+  .reloj .avance { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset .5s linear; }
+  .reloj.descanso .avance { stroke: var(--amber); }
+  .reloj-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .reloj-t { font-family: var(--font-display); font-size: 3rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .reloj-f { color: var(--muted); font-size: 0.85rem; }
+  .btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
+  .btn.primario { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); min-width: 130px; }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .barra { height: 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; display: flex; }
+  .barra span { height: 100%; }
+  .leyenda { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 0.85rem; }
+  .leyenda div { display: flex; justify-content: space-between; gap: 8px; }
+  .leyenda .num { white-space: nowrap; }
+  @media (max-width: 380px) { .leyenda { grid-template-columns: 1fr; } }
+  .leyenda i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 6px; }
+
+  /* Progreso */
+  .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .kpi .v { font-family: var(--font-display); font-size: 1.7rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kpi .v small { font-family: var(--font-body); font-size: 0.8rem; color: var(--muted); font-weight: 400; margin-left: 3px; }
+  .kpi .d { font-size: 0.78rem; }
+  .bueno { color: var(--ok); } .malo { color: var(--bad); }
+  .grafico { position: relative; height: 190px; }
+  .heat { display: grid; grid-template-columns: repeat(8, 1fr); grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 4px; }
+  .heat span { aspect-ratio: 1; border-radius: 4px; background: var(--heat-0); }
+  .heat-ley { display: flex; gap: 4px; align-items: center; justify-content: flex-end; font-size: 0.75rem; color: var(--muted); }
+  .heat-ley span { width: 12px; height: 12px; border-radius: 3px; }
+  a.link { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+  /* Barra inferior */
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); display: flex; justify-content: center; padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); z-index: 5; }
+  .tabs-in { width: 100%; max-width: 520px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .tab { border: 0; background: none; padding: 8px 4px; border-radius: 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 0.78rem; color: var(--muted); }
+  .tab svg { width: 22px; height: 22px; }
+  .tab[aria-selected="true"] { color: var(--accent); background: var(--panel-2); font-weight: 600; }
+
+  .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 0.85rem; z-index: 6; max-width: calc(100% - 32px); }
+  .cargando { display: flex; align-items: center; justify-content: center; min-height: 40vh; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* Vinculación del equipo (solo la pantalla instalable) */
+  .vincular { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; background: #0B2B23; color: #F1ECDD; font-family: var(--font-body); }
+  .vincular h1 { margin: 0; font-family: var(--font-display); font-size: 28px; }
+  .vincular h1 span { color: #D9A94A; }
+  .vincular p { margin: 0; max-width: 320px; color: #A7B9B0; line-height: 1.5; }
+  .vincular a { background: #D9A94A; color: #10241E; padding: 14px 26px; border-radius: 999px; text-decoration: none; font-weight: 600; }
+</style>
 </head>
 <body>
-  <main>
-    <img src="icon-192.png" alt="">
-    <div class="word">pred<b>yctor</b></div>
-    <p>Acecha tus metas. No bajes el ritmo.</p>
-    <a id="entrar" href="#">Entrar</a>
-  </main>
-  <script>
-    // Predyctor runs on Google Apps Script; this page only gives it an installable home screen icon.
-    const APP_URL = 'https://script.google.com/macros/s/AKfycbzJGTDuuUG6g9EjWG_lTVxAdxDhJRCO7GdUVXBjnSrbVp3alROKhaGi90o8S_jaDzA/exec';
-    document.getElementById('entrar').href = APP_URL;
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
-    // Opened from the home screen icon: go straight to the app.
-    // Opened in a normal tab: stay here so Chrome can offer "Instalar app".
-    const instalada = matchMedia('(display-mode: standalone)').matches;
-    if (instalada) setTimeout(() => location.replace(APP_URL), 400);
-  </script>
+<main class="app" id="app">
+  <div class="cargando" id="cargando">Cargando tu día…</div>
+
+  <!-- HOY -->
+  <section id="v-hoy" hidden>
+    <div class="top">
+      <span class="fecha" id="hoy-fecha"></span>
+      <h1>Hoy</h1>
+      <span class="toca"><span class="dot" id="toca-dot"></span><span id="toca-txt"></span></span>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="row between"><h2>Agenda</h2><span class="small muted">Google Calendar</span></div>
+      <ul class="agenda" id="agenda"></ul>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="row between"><h2>Checks del día</h2><span class="small muted" id="checks-n"></span></div>
+      <div class="checks">
+        <button class="check" data-k="celular_fuera" aria-pressed="false"><span class="ico">✓</span><span class="lbl">Celular fuera</span><span class="sub">anoche, 23:30</span></button>
+        <button class="check" data-k="sin_ig_despertar" aria-pressed="false"><span class="ico">✓</span><span class="lbl">Mañana sin IG</span><span class="sub">primeros 30 min</span></button>
+        <button class="check" data-k="entreno" aria-pressed="false"><span class="ico">✓</span><span class="lbl">Entreno</span><span class="sub">trote, acond. o cerro</span></button>
+        <button class="check" data-k="bloque" aria-pressed="false"><span class="ico">✓</span><span class="lbl">Bloque de foco</span><span class="sub">la hora de estudio</span></button>
+      </div>
+      <div class="campo">
+        <label for="ig-min">Instagram hoy <span class="small muted">(min)</span></label>
+        <input id="ig-min" type="number" inputmode="numeric" min="0" max="1440" placeholder="—">
+      </div>
+      <div class="campo">
+        <span>Postulaciones hoy</span>
+        <span class="stepper"><button id="post-menos" aria-label="Restar postulación">−</button><span id="post-n" class="num">0</span><button id="post-mas" aria-label="Sumar postulación">+</button></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="row between">
+        <div><h2>Racha</h2><span class="small muted">días seguidos con 3 o más checks</span></div>
+        <span class="racha-num num" id="racha">0</span>
+      </div>
+      <div class="dias" id="dias" aria-label="Últimos 14 días"></div>
+    </div>
+  </section>
+
+  <!-- ESTUDIO -->
+  <section id="v-estudio" hidden>
+    <div class="top"><span class="fecha">Temporizador</span><h1>Estudio</h1></div>
+    <div class="card" style="margin-top:14px">
+      <h2>Tema</h2>
+      <div class="chips" id="temas"></div>
+      <div class="row between" style="flex-wrap:wrap; gap:12px">
+        <div><span class="small muted">Estudio</span><div class="chips" id="durs"></div></div>
+        <div><span class="small muted">Descanso</span><div class="chips" id="pausas"></div></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="reloj" id="reloj">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="pista" cx="60" cy="60" r="52"></circle><circle class="avance" id="avance" cx="60" cy="60" r="52"></circle></svg>
+        <div class="reloj-txt"><span class="reloj-t" id="reloj-t">45:00</span><span class="reloj-f" id="reloj-f">Listo para partir</span></div>
+      </div>
+      <div class="btns">
+        <button class="btn primario" id="t-iniciar">Iniciar</button>
+        <button class="btn" id="t-guardar" disabled>Terminar y guardar</button>
+        <button class="btn" id="t-reset" disabled>Reiniciar</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="row between"><h2>Esta semana</h2><span class="small muted num" id="sem-total"></span></div>
+      <div class="barra" id="sem-barra"></div>
+      <div class="leyenda" id="sem-ley"></div>
+      <span class="small muted num" id="sem-trabajo"></span>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Registrar a mano</h2>
+      <span class="small muted">Para lo que estudiaste sin el temporizador. Se guarda en el tema elegido arriba.</span>
+      <div class="campo">
+        <label for="man-min">Minutos</label>
+        <input id="man-min" type="number" inputmode="numeric" min="1" max="600" placeholder="45">
+      </div>
+      <button class="btn" id="man-guardar">Guardar minutos</button>
+    </div>
+  </section>
+
+  <!-- PROGRESO -->
+  <section id="v-progreso" hidden>
+    <div class="top"><span class="fecha">Semana a semana</span><h1>Progreso</h1></div>
+    <div class="kpis" style="margin-top:14px" id="kpis"></div>
+    <div class="card" style="margin-top:14px"><h2>Puntaje semanal</h2><span class="small muted">De 0 a 100: Instagram, bloques, hábitos y entrenos.</span><div class="grafico"><canvas id="g-puntaje"></canvas></div></div>
+    <div class="card" style="margin-top:14px"><h2>Estudio por tema</h2><span class="small muted">Horas por semana. Meta: 6 h.</span><div class="grafico"><canvas id="g-estudio"></canvas></div></div>
+    <div class="card" style="margin-top:14px"><h2>Instagram, horas por día</h2><span class="small muted">Meta: 1 h.</span><div class="grafico"><canvas id="g-ig"></canvas></div></div>
+    <div class="card" style="margin-top:14px">
+      <h2>Constancia, últimas 8 semanas</h2>
+      <span class="small muted">Cada cuadro es un día; más oscuro, más checks cumplidos.</span>
+      <div class="heat" id="heat"></div>
+      <div class="heat-ley">0 <span style="background:var(--heat-0)"></span><span style="background:var(--heat-1)"></span><span style="background:var(--heat-2)"></span><span style="background:var(--heat-3)"></span><span style="background:var(--heat-4)"></span> 4</div>
+    </div>
+    <p class="small muted" style="text-align:center">Tablero completo: <a class="link" id="dash-link" href="#" target="_blank" rel="noopener">abrir</a></p>
+  </section>
+</main>
+
+<nav class="tabs" role="tablist" aria-label="Secciones">
+  <div class="tabs-in">
+    <button class="tab" role="tab" data-v="hoy" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M9 15l2 2 4-4"/></svg>Hoy</button>
+    <button class="tab" role="tab" data-v="estudio" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2h4"/></svg>Estudio</button>
+    <button class="tab" role="tab" data-v="progreso" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>Progreso</button>
+  </div>
+</nav>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var TEMAS = [
+    { k: 'h_trading', n: 'Trading', c: '--t-trading' },
+    { k: 'h_tienda', n: 'Tienda / ML', c: '--t-tienda' },
+    { k: 'h_busqueda_pega', n: 'Búsqueda de pega', c: '--t-pega' },
+    { k: 'h_skool', n: 'Skool', c: '--t-skool' },
+    { k: 'h_trabajo', n: 'Trabajo', c: '--t-trabajo', trabajo: true }
+  ];
+  var ESTUDIO = TEMAS.filter(function (t) { return !t.trabajo; });
+  function esDiaHabil() { var d = new Date().getDay(); return d >= 1 && d <= 5; }
+  var DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  var $ = function (id) { return document.getElementById(id); };
+  var css = function (v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
+  var estado = { hoy: null, progreso: null, vista: 'hoy' };
+
+  // Motor en Apps Script: solo responde con la clave de este equipo.
+  var API_URL = "https://script.google.com/macros/s/AKfycbxuJfqirwf4nK_jIDoHR8Vo6JOirTdGTQgEVmF05lx-ht2KG_tZMc_R7gv7Fy65pY_g/exec";
+  var VINCULAR_URL = "https://script.google.com/macros/s/AKfycbzJGTDuuUG6g9EjWG_lTVxAdxDhJRCO7GdUVXBjnSrbVp3alROKhaGi90o8S_jaDzA/exec?vincular=1";
+  function rpc(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    var clave = leerLocal('rt-clave');
+    if (!clave) { mostrarVincular(); return Promise.reject(new Error('Este equipo no está vinculado.')); }
+    return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, clave: clave }) })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (r.ok) return r.data;
+        if (r.error === 'No autorizado') { try { localStorage.removeItem('rt-clave'); } catch (e) {} mostrarVincular(); }
+        throw new Error(r.error);
+      });
+  }
+  function mostrarVincular() {
+    if (document.querySelector('.vincular')) return;
+    var d = document.createElement('div');
+    d.className = 'vincular';
+    d.innerHTML = '<img src="icon-192.png" alt="" width="88" height="88"><h1>pred<span>yctor</span></h1>' +
+      '<p>Para proteger tus datos, vincula este equipo una sola vez con tu cuenta de Google.</p>' +
+      '<a href="' + VINCULAR_URL + '">Vincular este equipo</a>';
+    document.body.appendChild(d);
+  }
+  function aviso(txt) {
+    var t = $('toast');
+    t.textContent = txt;
+    t.hidden = false;
+    clearTimeout(aviso._t);
+    aviso._t = setTimeout(function () { t.hidden = true; }, 2200);
+  }
+  function guardarLocal(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function leerLocal(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function fechaLarga(key) {
+    var p = key.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    return DIAS[d.getUTCDay()] + ' ' + p[2] + ' ' + MESES[p[1] - 1];
+  }
+  function fechaCorta(key) { var p = key.split('-').map(Number); return p[2] + ' ' + MESES[p[1] - 1]; }
+  function horas(min) { var h = min / 60; return (Math.round(h * 10) / 10).toString().replace('.', ',') + ' h'; }
+  function heatColor(p) { return 'var(--heat-' + Math.max(0, Math.min(4, p)) + ')'; }
+
+  /* ---------- Navegación ---------- */
+  function mostrar(v) {
+    estado.vista = v;
+    ['hoy', 'estudio', 'progreso'].forEach(function (x) { $('v-' + x).hidden = x !== v; });
+    document.querySelectorAll('.tab').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.v === v)); });
+    guardarLocal('rt-vista', v);
+    if (v === 'progreso') cargarProgreso();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('.tab').forEach(function (b) { b.addEventListener('click', function () { mostrar(b.dataset.v); }); });
+
+  /* ---------- HOY ---------- */
+  function pintarHoy(d) {
+    estado.hoy = d;
+    $('hoy-fecha').textContent = fechaLarga(d.fecha);
+    $('toca-txt').textContent = 'Hoy toca: ' + d.rotacion.texto;
+    var tema = TEMAS.filter(function (t) { return t.k === d.rotacion.tema; })[0];
+    $('toca-dot').style.background = tema ? 'var(' + tema.c + ')' : 'var(--accent)';
+
+    var ul = $('agenda');
+    ul.replaceChildren();
+    var ahora = Date.now();
+    if (!d.agenda.length) {
+      var li0 = document.createElement('li');
+      li0.className = 'vacio';
+      li0.textContent = 'Nada agendado para hoy.';
+      ul.appendChild(li0);
+    }
+    d.agenda.forEach(function (e) {
+      var li = document.createElement('li');
+      if (!e.todoElDia && e.finMs < ahora) li.className = 'pasado';
+      else if (!e.todoElDia && e.inicioMs <= ahora && e.finMs >= ahora) li.className = 'ahora';
+      var h = document.createElement('span');
+      h.className = 'hora';
+      h.textContent = e.todoElDia ? 'Todo el día' : e.inicio + '–' + e.fin;
+      var t = document.createElement('span');
+      t.className = 'titulo';
+      t.textContent = e.titulo;
+      li.append(h, t);
+      ul.appendChild(li);
+    });
+
+    var n = 0;
+    document.querySelectorAll('.check').forEach(function (b) {
+      var on = !!d.check[b.dataset.k];
+      if (on) n++;
+      b.setAttribute('aria-pressed', String(on));
+    });
+    $('checks-n').textContent = n + ' de 4';
+    if (document.activeElement !== $('ig-min')) $('ig-min').value = d.check.instagram_min == null ? '' : d.check.instagram_min;
+    $('post-n').textContent = d.check.postulaciones || 0;
+
+    $('racha').textContent = d.racha;
+    $('dias').replaceChildren.apply($('dias'), d.ultimos.map(function (x) {
+      var s = document.createElement('span');
+      s.style.background = heatColor(x.puntos);
+      s.title = fechaCorta(x.fecha) + ': ' + x.puntos + ' de 4';
+      return s;
+    }));
+    $('dash-link').href = d.dashboardUrl;
+
+    pintarSemana(d.estudio);
+    if (!temaElegido) elegirTema(d.rotacion.tema || 'h_tienda');
+  }
+
+  function leerCheck() {
+    var c = {};
+    document.querySelectorAll('.check').forEach(function (b) { c[b.dataset.k] = b.getAttribute('aria-pressed') === 'true'; });
+    var ig = $('ig-min').value;
+    c.instagram_min = ig === '' ? null : Number(ig);
+    c.postulaciones = Number($('post-n').textContent) || 0;
+    c.nota = estado.hoy ? estado.hoy.check.nota : '';
+    c.fecha = estado.hoy ? estado.hoy.fecha : undefined;
+    return c;
+  }
+  var tGuardar = null;
+  function programarGuardado() {
+    clearTimeout(tGuardar);
+    tGuardar = setTimeout(function () {
+      rpc('guardarCheck', leerCheck()).then(function (d) { pintarHoy(d); aviso('Guardado'); })
+        .catch(function (e) { aviso('No se pudo guardar: ' + (e && e.message ? e.message : e)); });
+    }, 600);
+  }
+  document.querySelectorAll('.check').forEach(function (b) {
+    b.addEventListener('click', function () {
+      b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+      var n = document.querySelectorAll('.check[aria-pressed="true"]').length;
+      $('checks-n').textContent = n + ' de 4';
+      programarGuardado();
+    });
+  });
+  $('ig-min').addEventListener('change', programarGuardado);
+  $('post-mas').addEventListener('click', function () { $('post-n').textContent = (Number($('post-n').textContent) || 0) + 1; programarGuardado(); });
+  $('post-menos').addEventListener('click', function () { $('post-n').textContent = Math.max(0, (Number($('post-n').textContent) || 0) - 1); programarGuardado(); });
+
+  /* ---------- ESTUDIO ---------- */
+  var temaElegido = null;
+  var durMin = leerLocal('rt-dur') || 45;
+  var pausaMin = leerLocal('rt-pausa') || 10;
+  var CIRC = 2 * Math.PI * 52;
+  $('avance').style.strokeDasharray = CIRC;
+
+  function chip(texto, activo, color, onClick) {
+    var b = document.createElement('button');
+    b.className = 'chip';
+    b.setAttribute('aria-pressed', String(activo));
+    if (color) { var i = document.createElement('i'); i.style.background = 'var(' + color + ')'; b.appendChild(i); }
+    b.appendChild(document.createTextNode(texto));
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function elegirTema(k) {
+    temaElegido = k;
+    var visibles = TEMAS.filter(function (t) { return !t.trabajo || esDiaHabil() || k === t.k; });
+    $('temas').replaceChildren.apply($('temas'), visibles.map(function (t) { return chip(t.n, t.k === k, t.c, function () { if (!timer.corriendo) elegirTema(t.k); }); }));
+    actualizarReloj();
+  }
+  function pintarDuraciones() {
+    $('durs').replaceChildren.apply($('durs'), [30, 45, 60].map(function (m) { return chip(m + ' min', m === durMin, null, function () { if (timer.fase) return; durMin = m; guardarLocal('rt-dur', m); pintarDuraciones(); actualizarReloj(); }); }));
+    $('pausas').replaceChildren.apply($('pausas'), [10, 15].map(function (m) { return chip(m + ' min', m === pausaMin, null, function () { pausaMin = m; guardarLocal('rt-pausa', m); pintarDuraciones(); }); }));
+  }
+
+  // fase: null | 'estudio' | 'descanso'; tiempos por marca de reloj para sobrevivir al bloqueo de pantalla
+  var timer = leerLocal('rt-timer') || { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+  var tick = null;
+
+  function restante() { return timer.corriendo ? Math.max(0, timer.finMs - Date.now()) : timer.restanteMs; }
+  function persistir() { guardarLocal('rt-timer', timer); }
+  function mmss(ms) { var s = Math.ceil(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+
+  function actualizarReloj() {
+    var total = timer.fase ? timer.totalMs : durMin * 60000;
+    var r = timer.fase ? restante() : total;
+    $('reloj-t').textContent = mmss(r);
+    $('avance').style.strokeDashoffset = String(CIRC * (1 - (total ? (total - r) / total : 0)));
+    $('reloj').classList.toggle('descanso', timer.fase === 'descanso');
+    var tema = TEMAS.filter(function (t) { return t.k === (timer.tema || temaElegido); })[0];
+    $('reloj-f').textContent = timer.fase === 'descanso' ? 'Descanso' : timer.fase ? (timer.corriendo ? 'En foco · ' : 'En pausa · ') + (tema ? tema.n : '') : 'Listo para partir';
+    $('t-iniciar').textContent = timer.corriendo ? 'Pausar' : timer.fase ? 'Seguir' : 'Iniciar';
+    $('t-guardar').disabled = timer.fase !== 'estudio';
+    $('t-reset').disabled = !timer.fase;
+    if (timer.fase && timer.corriendo && r <= 0) terminarFase();
+  }
+  function arrancarTick() { clearInterval(tick); tick = setInterval(actualizarReloj, 500); }
+  var wake = null;
+  function pedirWake() { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (w) { wake = w; }).catch(function () {}); } catch (e) {} }
+  function soltarWake() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
+  function sonar() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.35, 0.7].forEach(function (t) {
+        var o = ctx.createOscillator(); var g = ctx.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.25);
+        o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
+      });
+    } catch (e) {}
+    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+  }
+
+  // Alarmas en Google Calendar: suenan en el celular aunque la pantalla esté bloqueada o la app cerrada.
+  // Al iniciar una tanda se programan el fin del estudio y el fin del descanso.
+  function nombreTema(k) { var t = TEMAS.filter(function (x) { return x.k === k; })[0]; return t ? t.n : ''; }
+  function programarAlarmas() {
+    var t = timer;
+    t.alarmas = t.alarmas || {};
+    t.alarmaSeq = (t.alarmaSeq || 0) + 1;
+    var seq = t.alarmaSeq;
+    var pedidos = t.fase === 'estudio'
+      ? [['estudio', t.finMs, 'Fin del estudio · ' + nombreTema(t.tema)], ['descanso', t.finMs + pausaMin * 60000, 'Fin del descanso']]
+      : [['descanso', t.finMs, 'Fin del descanso']];
+    pedidos.forEach(function (p) {
+      rpc('programarAlarma', p[1], p[2]).then(function (id) {
+        if (timer === t && t.corriendo && t.alarmaSeq === seq) { t.alarmas[p[0]] = id; persistir(); }
+        else rpc('cancelarAlarma', id).catch(function () {});
+      }).catch(function () { aviso('No pude programar la alarma en Calendar.'); });
+    });
+  }
+  function cancelarAlarmas(cuales) {
+    var a = timer.alarmas || {};
+    timer.alarmaSeq = (timer.alarmaSeq || 0) + 1;
+    (cuales || ['estudio', 'descanso']).forEach(function (k) {
+      if (a[k]) rpc('cancelarAlarma', a[k]).catch(function () {});
+      delete a[k];
+    });
+  }
+
+  $('t-iniciar').addEventListener('click', function () {
+    if (!timer.fase) {
+      var ahora = new Date();
+      timer = { fase: 'estudio', corriendo: true, totalMs: durMin * 60000, finMs: Date.now() + durMin * 60000, restanteMs: 0, tema: temaElegido, inicio: String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0') };
+      pedirWake(); programarAlarmas();
+    } else if (timer.corriendo) {
+      timer.restanteMs = restante(); timer.corriendo = false; soltarWake(); cancelarAlarmas();
+    } else {
+      timer.finMs = Date.now() + timer.restanteMs; timer.corriendo = true; pedirWake(); programarAlarmas();
+    }
+    persistir(); actualizarReloj(); arrancarTick();
+  });
+  $('t-reset').addEventListener('click', function () {
+    cancelarAlarmas();
+    timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+    persistir(); soltarWake(); actualizarReloj();
+  });
+  $('t-guardar').addEventListener('click', function () {
+    var hechos = Math.round((timer.totalMs - restante()) / 60000);
+    if (hechos < 1) { aviso('Todavía no hay un minuto completo.'); return; }
+    guardarEstudio(timer.tema, hechos, timer.inicio);
+    cancelarAlarmas();
+    timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+    persistir(); soltarWake(); actualizarReloj();
+  });
+  function terminarFase() {
+    sonar();
+    if (timer.fase === 'estudio') {
+      guardarEstudio(timer.tema, Math.round(timer.totalMs / 60000), timer.inicio);
+      // El descanso parte cuando terminó el estudio, no cuando volviste a abrir la app,
+      // para que calce con la alarma que ya quedó programada en Calendar.
+      cancelarAlarmas(['estudio']);
+      var alarmas = timer.alarmas || {};
+      var finEstudio = timer.finMs;
+      timer = { fase: 'descanso', corriendo: true, totalMs: pausaMin * 60000, finMs: finEstudio + pausaMin * 60000, restanteMs: 0, tema: timer.tema, inicio: '', alarmas: { descanso: alarmas.descanso }, alarmaSeq: timer.alarmaSeq };
+      if (!alarmas.descanso && timer.finMs > Date.now()) programarAlarmas();
+      aviso('Tanda guardada. A descansar ' + pausaMin + ' min.');
+    } else {
+      cancelarAlarmas();
+      timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+      soltarWake();
+      aviso('Fin del descanso. ¿Otra tanda?');
+    }
+    persistir(); actualizarReloj();
+  }
+  function guardarEstudio(tema, minutos, inicio) {
+    rpc('registrarEstudio', { tema: tema, minutos: minutos, inicio: inicio })
+      .then(function (r) { pintarSemana(r); aviso(minutos + ' min guardados'); estado.progreso = null; })
+      .catch(function (e) { aviso('No se pudo guardar: ' + (e && e.message ? e.message : e)); });
+  }
+  $('man-guardar').addEventListener('click', function () {
+    var m = Math.round(Number($('man-min').value));
+    if (!(m >= 1 && m <= 600)) { aviso('Pon entre 1 y 600 minutos.'); return; }
+    guardarEstudio(temaElegido, m, '');
+    $('man-min').value = '';
+  });
+
+  function pintarSemana(r) {
+    if (!r) return;
+    var total = 0;
+    ESTUDIO.forEach(function (t) { total += r.semanaMin[t.k] || 0; });
+    var trab = r.semanaMin.h_trabajo || 0;
+    $('sem-trabajo').textContent = trab ? 'Foco en el trabajo esta semana: ' + horas(trab) + ' (no suma a la meta de estudio)' : '';
+    var meta = r.metaSemanaMin || 360;
+    $('sem-total').textContent = horas(total) + ' de ' + horas(meta);
+    $('sem-barra').replaceChildren.apply($('sem-barra'), ESTUDIO.map(function (t) {
+      var s = document.createElement('span');
+      s.style.width = Math.min(100, ((r.semanaMin[t.k] || 0) / Math.max(meta, total)) * 100) + '%';
+      s.style.background = 'var(' + t.c + ')';
+      return s;
+    }));
+    $('sem-ley').replaceChildren.apply($('sem-ley'), ESTUDIO.map(function (t) {
+      var d = document.createElement('div');
+      var a = document.createElement('span'); var i = document.createElement('i'); i.style.background = 'var(' + t.c + ')';
+      a.append(i, t.n);
+      var b = document.createElement('span'); b.className = 'num muted'; b.textContent = horas(r.semanaMin[t.k] || 0);
+      d.append(a, b);
+      return d;
+    }));
+  }
+
+  /* ---------- PROGRESO ---------- */
+  var graficos = {};
+  function cargarProgreso() {
+    if (estado.progreso) { pintarProgreso(estado.progreso); return; }
+    rpc('getProgreso').then(function (p) { estado.progreso = p; pintarProgreso(p); })
+      .catch(function (e) { aviso('No se pudo cargar el progreso: ' + (e && e.message ? e.message : e)); });
+  }
+  function kpi(label, valor, suf, delta, menosEsMejor) {
+    var d = document.createElement('div'); d.className = 'kpi';
+    var l = document.createElement('span'); l.className = 'small muted'; l.textContent = label;
+    var v = document.createElement('span'); v.className = 'v'; v.textContent = valor;
+    if (suf) { var s = document.createElement('small'); s.textContent = suf; v.appendChild(s); }
+    var x = document.createElement('span'); x.className = 'd muted';
+    if (delta !== null && delta !== undefined && !isNaN(delta)) {
+      var bueno = menosEsMejor ? delta < 0 : delta > 0;
+      x.className = 'd ' + (delta === 0 ? 'muted' : bueno ? 'bueno' : 'malo');
+      x.textContent = (delta > 0 ? '+' : delta < 0 ? '−' : '±') + String(Math.abs(Math.round(delta * 10) / 10)).replace('.', ',') + ' vs semana anterior';
+    } else { x.textContent = 'sin semana anterior'; }
+    d.append(l, v, x);
+    return d;
+  }
+  function pintarProgreso(p) {
+    $('dash-link').href = p.dashboardUrl;
+    var s = p.semanas;
+    var u = s[s.length - 1] || {};
+    var a = s[s.length - 2];
+    var dif = function (k) { return a && u[k] != null && a[k] != null ? u[k] - a[k] : null; };
+    var fmt = function (v) { return v == null ? '—' : String(Math.round(v * 10) / 10).replace('.', ','); };
+    $('kpis').replaceChildren(
+      kpi('Puntaje', fmt(u.puntaje), 'de 100', dif('puntaje'), false),
+      kpi('Instagram', fmt(u.instagram_h_dia), 'h/día', dif('instagram_h_dia'), true),
+      kpi('Estudio', fmt(u.horas_estudio), 'h', dif('horas_estudio'), false),
+      kpi('Bloques', fmt(u.bloques_foco), 'de 6', dif('bloques_foco'), false)
+    );
+
+    var heat = $('heat');
+    heat.replaceChildren.apply(heat, p.dias.map(function (x) {
+      var sp = document.createElement('span');
+      sp.style.background = heatColor(x.puntos);
+      sp.title = fechaCorta(x.fecha) + ': ' + x.puntos + ' de 4';
+      return sp;
+    }));
+
+    if (typeof Chart === 'undefined') return;
+    var etiquetas = s.map(function (r) { return r.numero === 0 ? 'Base' : fechaCorta(r.semana); });
+    var grid = css('--line'); var txt = css('--muted');
+    Chart.defaults.font.family = css('--font-body');
+    Chart.defaults.color = txt;
+    var ejes = function (extra) {
+      return Object.assign({
+        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } },
+        y: { beginAtZero: true, grid: { color: grid }, border: { display: false } }
+      }, extra || {});
+    };
+    function dibujar(id, cfg) {
+      if (graficos[id]) graficos[id].destroy();
+      graficos[id] = new Chart($(id), cfg);
+    }
+    var acc = css('--accent');
+    dibujar('g-puntaje', {
+      type: 'line',
+      data: { labels: etiquetas, datasets: [{ data: s.map(function (r) { return r.puntaje; }), borderColor: acc, backgroundColor: acc + '22', fill: true, tension: 0, pointRadius: 3, borderWidth: 2 }] },
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: ejes({ y: { min: 0, max: 100, grid: { color: grid }, border: { display: false } } }) }
+    });
+    dibujar('g-estudio', {
+      type: 'bar',
+      data: { labels: etiquetas, datasets: ESTUDIO.map(function (t) { return { label: t.n, data: s.map(function (r) { return r[t.k] || 0; }), backgroundColor: css(t.c), borderRadius: 3, maxBarThickness: 28 }; }) },
+      options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } }, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, suggestedMax: 7, grid: { color: grid }, border: { display: false } } } }
+    });
+    var amber = css('--amber');
+    dibujar('g-ig', {
+      type: 'line',
+      data: { labels: etiquetas, datasets: [
+        { label: 'Instagram', data: s.map(function (r) { return r.instagram_h_dia; }), borderColor: amber, pointBackgroundColor: amber, tension: 0, pointRadius: 3, borderWidth: 2, spanGaps: true },
+        { label: 'Meta', data: s.map(function () { return 1; }), borderColor: css('--ok'), borderDash: [5, 5], pointRadius: 0, borderWidth: 1.5 }
+      ] },
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: ejes({ y: { beginAtZero: true, suggestedMax: 4, grid: { color: grid }, border: { display: false } } }) }
+    });
+  }
+
+  /* ---------- Arranque ---------- */
+  // La clave llega una sola vez en el # desde la página de vinculación; se guarda y se borra de la dirección.
+  var claveEnUrl = /[#&]clave=([0-9a-f]+)/.exec(location.hash);
+  if (claveEnUrl) { guardarLocal('rt-clave', claveEnUrl[1]); history.replaceState(null, '', location.pathname + location.search); }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  if (!leerLocal('rt-clave')) { mostrarVincular(); return; }
+  pintarDuraciones();
+  actualizarReloj();
+  if (timer.fase) arrancarTick();
+  rpc('getHoy').then(function (d) {
+    $('cargando').hidden = true;
+    pintarHoy(d);
+    var v = leerLocal('rt-vista');
+    mostrar(v === 'estudio' || v === 'progreso' ? v : 'hoy');
+  }).catch(function (e) {
+    $('cargando').textContent = 'No pude cargar tu día: ' + (e && e.message ? e.message : e);
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      actualizarReloj();
+      if (estado.vista === 'hoy') rpc('getHoy').then(pintarHoy).catch(function () {});
+    }
+  });
+})();
+</script>
 </body>
 </html>
