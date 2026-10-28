@@ -560,20 +560,49 @@
     });
   }
 
+  // Notificaciones del sistema: solo en la pantalla instalable (dentro de Apps Script no están permitidas).
+  // "En curso" muestra a qué hora termina la fase; "fin" avisa fuerte si la app sigue viva al terminar.
+  var puedeNotificar = window.top === window && 'Notification' in window && 'serviceWorker' in navigator;
+  function horaCorta(ms) { var d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function notificar(titulo, opciones) {
+    if (!puedeNotificar || Notification.permission !== 'granted') return;
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.showNotification(titulo, Object.assign({ icon: 'icon-192.png', badge: 'icon-192.png', lang: 'es-CL' }, opciones));
+    }).catch(function () {});
+  }
+  function avisoEnCurso() {
+    if (!timer.corriendo) return;
+    var base = { tag: 'predyctor-en-curso', silent: true, renotify: false, timestamp: timer.finMs };
+    if (timer.fase === 'estudio') notificar('⏳ En foco · ' + nombreTema(timer.tema), Object.assign(base, { body: 'Termina a las ' + horaCorta(timer.finMs) + '. Después, ' + pausaMin + ' min de descanso.' }));
+    else if (timer.fase === 'descanso') notificar('☕ Descanso', Object.assign(base, { body: 'Vuelves al foco a las ' + horaCorta(timer.finMs) + '.' }));
+  }
+  function avisoFin(titulo, cuerpo) {
+    notificar(titulo, { tag: 'predyctor-fin', body: cuerpo, renotify: true, requireInteraction: true, vibrate: [300, 150, 300, 150, 600] });
+  }
+  function cerrarAvisoEnCurso() {
+    if (!puedeNotificar) return;
+    navigator.serviceWorker.ready.then(function (reg) { return reg.getNotifications({ tag: 'predyctor-en-curso' }); })
+      .then(function (ns) { (ns || []).forEach(function (n) { n.close(); }); }).catch(function () {});
+  }
+  function pedirPermisoYAvisar() {
+    if (puedeNotificar && Notification.permission === 'default') Notification.requestPermission().then(avisoEnCurso).catch(function () {});
+    else avisoEnCurso();
+  }
+
   $('t-iniciar').addEventListener('click', function () {
     if (!timer.fase) {
       var ahora = new Date();
       timer = { fase: 'estudio', corriendo: true, totalMs: durMin * 60000, finMs: Date.now() + durMin * 60000, restanteMs: 0, tema: temaElegido, inicio: String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0') };
-      pedirWake(); programarAlarmas();
+      pedirWake(); programarAlarmas(); pedirPermisoYAvisar();
     } else if (timer.corriendo) {
-      timer.restanteMs = restante(); timer.corriendo = false; soltarWake(); cancelarAlarmas();
+      timer.restanteMs = restante(); timer.corriendo = false; soltarWake(); cancelarAlarmas(); cerrarAvisoEnCurso();
     } else {
-      timer.finMs = Date.now() + timer.restanteMs; timer.corriendo = true; pedirWake(); programarAlarmas();
+      timer.finMs = Date.now() + timer.restanteMs; timer.corriendo = true; pedirWake(); programarAlarmas(); pedirPermisoYAvisar();
     }
     persistir(); actualizarReloj(); arrancarTick();
   });
   $('t-reset').addEventListener('click', function () {
-    cancelarAlarmas();
+    cancelarAlarmas(); cerrarAvisoEnCurso();
     timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
     persistir(); soltarWake(); actualizarReloj();
   });
@@ -581,7 +610,7 @@
     var hechos = Math.round((timer.totalMs - restante()) / 60000);
     if (hechos < 1) { aviso('Todavía no hay un minuto completo.'); return; }
     guardarEstudio(timer.tema, hechos, timer.inicio);
-    cancelarAlarmas();
+    cancelarAlarmas(); cerrarAvisoEnCurso();
     timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
     persistir(); soltarWake(); actualizarReloj();
   });
@@ -597,8 +626,11 @@
       timer = { fase: 'descanso', corriendo: true, totalMs: pausaMin * 60000, finMs: finEstudio + pausaMin * 60000, restanteMs: 0, tema: timer.tema, inicio: '', alarmas: { descanso: alarmas.descanso }, alarmaSeq: timer.alarmaSeq };
       if (!alarmas.descanso && timer.finMs > Date.now()) programarAlarmas();
       aviso('Tanda guardada. A descansar ' + pausaMin + ' min.');
+      avisoFin('✅ Fin del estudio', 'A descansar ' + pausaMin + ' min. Vuelves a las ' + horaCorta(timer.finMs) + '.');
+      avisoEnCurso();
     } else {
-      cancelarAlarmas();
+      cancelarAlarmas(); cerrarAvisoEnCurso();
+      avisoFin('🐆 Fin del descanso', '¿Otra tanda? Toca para volver a Predyctor.');
       timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
       soltarWake();
       aviso('Fin del descanso. ¿Otra tanda?');

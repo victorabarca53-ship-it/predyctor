@@ -1,5 +1,5 @@
 // Bump the version when the icons or manifest change.
-const CACHE = 'predyctor-v3';
+const CACHE = 'predyctor-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './favicon.ico', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -10,6 +10,13 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
   self.clients.claim();
+});
+
+// Tapping a timer notification brings Predyctor to the front (or opens it).
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((cs) => (cs.length ? cs[0].focus() : self.clients.openWindow('./'))));
 });
 
 self.addEventListener('fetch', (e) => {
