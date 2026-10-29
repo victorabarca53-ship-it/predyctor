@@ -12,9 +12,14 @@
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
 <style>
+  /* Fuentes incluidas en la app: funcionan sin internet */
+  @font-face { font-family: 'Sora'; font-weight: 500; font-display: swap; src: url(vendor/fonts/sora-latin-500-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Sora'; font-weight: 600; font-display: swap; src: url(vendor/fonts/sora-latin-600-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Sora'; font-weight: 700; font-display: swap; src: url(vendor/fonts/sora-latin-700-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 400; font-display: swap; src: url(vendor/fonts/inter-latin-400-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 500; font-display: swap; src: url(vendor/fonts/inter-latin-500-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 600; font-display: swap; src: url(vendor/fonts/inter-latin-600-normal.woff2) format('woff2'); }
   /* Sendero: verde bosque + ámbar de linterna; tarjetas sobrias, números grandes */
   :root {
     --bg: #f2f3ee;
@@ -93,6 +98,11 @@
   .fecha::first-letter { text-transform: uppercase; }
   .toca { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 0.9rem; }
   .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--accent); }
+  .sync { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); }
+  .sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+  .sync[data-e="pendiente"]::before { background: var(--warn); }
+  .sync[data-e="offline"]::before { background: var(--muted); }
+  .sync[data-e="error"]::before { background: var(--bad); }
 
   /* Agenda */
   .agenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -208,10 +218,11 @@
       <span class="fecha" id="hoy-fecha"></span>
       <h1>Hoy</h1>
       <span class="toca"><span class="dot" id="toca-dot"></span><span id="toca-txt"></span></span>
+      <span class="sync" id="sync-estado" data-e="ok"></span>
     </div>
 
     <div class="card" style="margin-top:14px">
-      <div class="row between"><h2>Agenda</h2><span class="small muted">Google Calendar</span></div>
+      <div class="row between"><h2>Agenda</h2><span class="small muted" id="agenda-fuente">Google Calendar</span></div>
       <ul class="agenda" id="agenda"></ul>
     </div>
 
@@ -310,7 +321,7 @@
 </nav>
 <div class="toast" id="toast" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="vendor/chart.umd.min.js"></script>
 <script>
 (function () {
   'use strict';
@@ -371,6 +382,214 @@
   function horas(min) { var h = min / 60; return (Math.round(h * 10) / 10).toString().replace('.', ',') + ' h'; }
   function heatColor(p) { return 'var(--heat-' + Math.max(0, Math.min(4, p)) + ')'; }
 
+  /* ---------- Datos en el teléfono (funciona sin internet) ----------
+     Todo se guarda primero aquí (IndexedDB). Cada cambio entra a una cola
+     y se manda a la hoja de Google cuando hay señal. */
+  var TZ = 'America/Santiago';
+  var DASHBOARD_URL = 'https://claude.ai/artifact/MNW7zqfSmf58DYa8PrzNpJ';
+  var BASE = { semana: '2026-10-12', instagram_h_dia: 3.5, bloques_foco: 0, celular_fuera: 0, sin_ig_despertar: 0, entrenos: 5, postulaciones: 0, h_trading: 0, h_tienda: 0, h_busqueda_pega: 0, h_skool: 0, h_trabajo: 0 };
+  var PRIMERA_SEMANA = '2026-10-19';
+  var ROTACION = {
+    0: { tema: null, texto: 'Finanzas 17:00 · estudio largo 17:30' },
+    1: { tema: 'h_trading', texto: 'Trading demo · 21:00' },
+    2: { tema: 'h_busqueda_pega', texto: 'Postulaciones a minería · 21:15' },
+    3: { tema: 'h_tienda', texto: 'Tienda / Mercado Libre · 21:00' },
+    4: { tema: 'h_skool', texto: 'Academia Skool · 21:15' },
+    5: { tema: null, texto: 'Acondicionamiento 19:15 · después libre' },
+    6: { tema: 'h_tienda', texto: 'Tienda (mañana, o tarde si hay cerro)' }
+  };
+  var CHECKS = ['celular_fuera', 'sin_ig_despertar', 'entreno', 'bloque'];
+  var db = { diario: {}, estudio: {}, agenda: {}, outbox: [], cancelar: [], ultimaSync: 0, agendaSync: 0 };
+  var idb = null;
+
+  function abrirDB() {
+    return new Promise(function (ok) {
+      try {
+        var req = indexedDB.open('predyctor', 1);
+        req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+        req.onsuccess = function () {
+          idb = req.result;
+          var g = idb.transaction('kv', 'readonly').objectStore('kv').get('db');
+          g.onsuccess = function () { if (g.result) db = Object.assign(db, g.result); ok(); };
+          g.onerror = function () { ok(); };
+        };
+        req.onerror = function () { ok(); };
+      } catch (e) { ok(); }
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+    });
+  }
+  function guardarDB() {
+    if (!idb) return;
+    try { idb.transaction('kv', 'readwrite').objectStore('kv').put(JSON.parse(JSON.stringify(db)), 'db'); } catch (e) {}
+  }
+  function nuevoId() {
+    try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+  function hoyKey() {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  }
+  function utcDe(key) { var p = key.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2])); }
+  function sumarDias(key, n) { var d = utcDe(key); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  function diaSemana(key) { return utcDe(key).getUTCDay(); }
+  function lunesDe(key) { return sumarDias(key, -((diaSemana(key) + 6) % 7)); }
+  function r1(v) { return Math.round(v * 10) / 10; }
+  function puntosDia(r) { return r ? CHECKS.filter(function (c) { return r[c] === true; }).length : 0; }
+  function ultimosDias(key, n) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var k = sumarDias(key, -i); out.push({ fecha: k, puntos: puntosDia(db.diario[k]) }); }
+    return out;
+  }
+  function rachaHasta(key) {
+    var n = 0;
+    var k = puntosDia(db.diario[key]) >= 3 ? key : sumarDias(key, -1);
+    while (puntosDia(db.diario[k]) >= 3) { n++; k = sumarDias(k, -1); }
+    return n;
+  }
+  function resumenSemana(key) {
+    var lunes = lunesDe(key);
+    var semanaMin = {};
+    TEMAS.forEach(function (t) { semanaMin[t.k] = 0; });
+    Object.keys(db.estudio).forEach(function (id) {
+      var r = db.estudio[id];
+      if (r && r.fecha >= lunes && r.fecha <= key && semanaMin[r.tema] !== undefined) semanaMin[r.tema] += Number(r.minutos) || 0;
+    });
+    return { semanaMin: semanaMin, metaSemanaMin: 360 };
+  }
+  function construirHoy() {
+    var key = hoyKey();
+    var f = db.diario[key] || {};
+    return {
+      fecha: key,
+      rotacion: ROTACION[diaSemana(key)],
+      agenda: db.agenda[key] || null,
+      check: {
+        celular_fuera: f.celular_fuera === true, sin_ig_despertar: f.sin_ig_despertar === true,
+        entreno: f.entreno === true, bloque: f.bloque === true,
+        instagram_min: f.instagram_min == null || f.instagram_min === '' ? null : Number(f.instagram_min),
+        postulaciones: Number(f.postulaciones) || 0, nota: f.nota || ''
+      },
+      estudio: resumenSemana(key),
+      racha: rachaHasta(key),
+      ultimos: ultimosDias(key, 14),
+      dashboardUrl: DASHBOARD_URL
+    };
+  }
+  function construirProgreso() {
+    var hoy = hoyKey();
+    var sem = {};
+    function nueva() { return { bloques: 0, celular: 0, sinIg: 0, entrenos: 0, igSum: 0, igN: 0, post: 0, h_trading: 0, h_tienda: 0, h_busqueda_pega: 0, h_skool: 0, h_trabajo: 0 }; }
+    Object.keys(db.diario).forEach(function (k) {
+      var r = db.diario[k]; var w = lunesDe(k);
+      var s = sem[w] || (sem[w] = nueva());
+      if (r.bloque === true) s.bloques++;
+      if (r.celular_fuera === true) s.celular++;
+      if (r.sin_ig_despertar === true) s.sinIg++;
+      if (r.entreno === true) s.entrenos++;
+      if (r.instagram_min != null && r.instagram_min !== '') { s.igSum += Number(r.instagram_min); s.igN++; }
+      s.post += Number(r.postulaciones) || 0;
+    });
+    Object.keys(db.estudio).forEach(function (id) {
+      var r = db.estudio[id]; if (!r || !r.fecha) return;
+      var s = sem[lunesDe(r.fecha)] || (sem[lunesDe(r.fecha)] = nueva());
+      if (s[r.tema] !== undefined) s[r.tema] += (Number(r.minutos) || 0) / 60;
+    });
+    var filas = [Object.assign({}, BASE)];
+    for (var w = PRIMERA_SEMANA; w <= lunesDe(hoy); w = sumarDias(w, 7)) {
+      var s = sem[w] || nueva();
+      filas.push({ semana: w, instagram_h_dia: s.igN ? r1(s.igSum / s.igN / 60) : null, bloques_foco: s.bloques, celular_fuera: s.celular, sin_ig_despertar: s.sinIg, entrenos: s.entrenos, postulaciones: s.post,
+        h_trading: r1(s.h_trading), h_tienda: r1(s.h_tienda), h_busqueda_pega: r1(s.h_busqueda_pega), h_skool: r1(s.h_skool), h_trabajo: r1(s.h_trabajo) });
+    }
+    var base = BASE.instagram_h_dia;
+    var tope = function (v) { return Math.max(0, Math.min(1, v)); };
+    var semanas = filas.map(function (r, i) {
+      var dias = (r.celular_fuera || 0) + (r.sin_ig_despertar || 0);
+      var ig = r.instagram_h_dia === null ? 0 : tope((base - r.instagram_h_dia) / (base - 1));
+      return Object.assign({}, r, {
+        numero: i,
+        horas_estudio: r1(r.h_trading + r.h_tienda + r.h_busqueda_pega + r.h_skool),
+        puntaje: Math.round(25 * (ig + tope((r.bloques_foco || 0) / 6) + tope(dias / 14) + tope((r.entrenos || 0) / 5)))
+      });
+    });
+    return { semanas: semanas, dias: ultimosDias(hoy, 56), dashboardUrl: DASHBOARD_URL };
+  }
+
+  // Cambios locales: se guardan al tiro y quedan en cola para la hoja.
+  function guardarCheckLocal(c) {
+    var key = c.fecha || hoyKey();
+    var rec = { fecha: key, celular_fuera: !!c.celular_fuera, sin_ig_despertar: !!c.sin_ig_despertar, entreno: !!c.entreno, bloque: !!c.bloque,
+      instagram_min: c.instagram_min == null || isNaN(c.instagram_min) ? null : Math.max(0, Math.round(c.instagram_min)),
+      postulaciones: Math.max(0, Math.round(c.postulaciones || 0)), nota: c.nota || '', actualizado: Date.now() };
+    db.diario[key] = rec;
+    db.outbox = db.outbox.filter(function (o) { return !(o.tipo === 'diario' && o.datos.fecha === key); });
+    db.outbox.push({ opId: nuevoId(), tipo: 'diario', datos: rec });
+    guardarDB();
+    programarSync();
+  }
+  function guardarEstudioLocal(tema, minutos, inicio) {
+    var rec = { id: nuevoId(), fecha: hoyKey(), inicio: inicio || '', minutos: minutos, tema: tema };
+    db.estudio[rec.id] = rec;
+    db.outbox.push({ opId: nuevoId(), tipo: 'estudio', datos: rec });
+    guardarDB();
+    programarSync();
+  }
+
+  // Sincronización con la hoja: manda la cola y trae historial y agenda.
+  var sincronizando = false, tSync = null;
+  function programarSync() { clearTimeout(tSync); tSync = setTimeout(sincronizar, 1500); pintarSync(); }
+  function sincronizar() {
+    if (sincronizando || !leerLocal('rt-clave')) { pintarSync(); return; }
+    if (!navigator.onLine) { pintarSync(); return; }
+    sincronizando = true; pintarSync();
+    var ops = db.outbox.slice(0, 200);
+    var cancelar = (db.cancelar || []).slice(0, 20);
+    cancelar.forEach(function (id) { rpc('cancelarAlarma', id).catch(function () {}); });
+    db.cancelar = (db.cancelar || []).slice(cancelar.length);
+    rpc('sync', { ops: ops }).then(function (res) {
+      var aplicados = {};
+      (res.aplicados || []).forEach(function (id) { aplicados[id] = true; });
+      db.outbox = db.outbox.filter(function (o) { return !aplicados[o.opId]; });
+      var pendDia = {}, pendEst = {};
+      db.outbox.forEach(function (o) { if (o.tipo === 'diario') pendDia[o.datos.fecha] = true; else if (o.tipo === 'estudio') pendEst[o.datos.id] = true; });
+      (res.diario || []).forEach(function (r) { if (r.fecha && !pendDia[r.fecha]) db.diario[r.fecha] = r; });
+      if (res.desde) {
+        Object.keys(db.estudio).forEach(function (id) { var r = db.estudio[id]; if (r.fecha >= res.desde && !pendEst[id]) delete db.estudio[id]; });
+      }
+      (res.estudio || []).forEach(function (r) { if (r.id) db.estudio[r.id] = r; });
+      if (res.agenda) {
+        Object.keys(res.agenda).forEach(function (k) { db.agenda[k] = res.agenda[k]; });
+        var corte = sumarDias(hoyKey(), -7);
+        Object.keys(db.agenda).forEach(function (k) { if (k < corte) delete db.agenda[k]; });
+        db.agendaSync = Date.now();
+      }
+      db.ultimaSync = Date.now();
+      db.error = '';
+      guardarDB();
+      repintar();
+    }).catch(function (e) {
+      db.error = (e && e.message) || 'sin respuesta';
+    }).then(function () {
+      sincronizando = false;
+      pintarSync();
+      if (db.outbox.length && !db.error) programarSync();
+    });
+  }
+  function pintarSync() {
+    var el = $('sync-estado'); if (!el) return;
+    var n = db.outbox.length;
+    var cuando = db.ultimaSync ? 'a las ' + horaDe(db.ultimaSync) : 'todavía no';
+    if (sincronizando) { el.dataset.e = 'pendiente'; el.textContent = 'Sincronizando…'; }
+    else if (!navigator.onLine) { el.dataset.e = 'offline'; el.textContent = 'Sin conexión' + (n ? ' · ' + n + (n === 1 ? ' cambio guardado' : ' cambios guardados') + ' en el teléfono' : ' · todo guardado en el teléfono'); }
+    else if (db.error && n) { el.dataset.e = 'error'; el.textContent = n + (n === 1 ? ' cambio' : ' cambios') + ' por subir · reintento al volver la señal'; }
+    else if (n) { el.dataset.e = 'pendiente'; el.textContent = n + (n === 1 ? ' cambio' : ' cambios') + ' por subir'; }
+    else { el.dataset.e = 'ok'; el.textContent = 'Sincronizado ' + cuando; }
+  }
+  function horaDe(ms) { var d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function repintar() {
+    pintarHoy(construirHoy());
+    if (estado.vista === 'progreso') pintarProgreso(construirProgreso());
+  }
+
   /* ---------- Navegación ---------- */
   function mostrar(v) {
     estado.vista = v;
@@ -393,13 +612,15 @@
     var ul = $('agenda');
     ul.replaceChildren();
     var ahora = Date.now();
-    if (!d.agenda.length) {
+    var eventos = d.agenda || [];
+    $('agenda-fuente').textContent = d.agenda ? (db.agendaSync ? 'Calendar · guardada ' + horaDe(db.agendaSync) : 'Google Calendar') : 'Calendar';
+    if (!eventos.length) {
       var li0 = document.createElement('li');
       li0.className = 'vacio';
-      li0.textContent = 'Nada agendado para hoy.';
+      li0.textContent = d.agenda ? 'Nada agendado para hoy.' : 'La agenda se descarga la primera vez que tengas señal.';
       ul.appendChild(li0);
     }
-    d.agenda.forEach(function (e) {
+    eventos.forEach(function (e) {
       var li = document.createElement('li');
       if (!e.todoElDia && e.finMs < ahora) li.className = 'pasado';
       else if (!e.todoElDia && e.inicioMs <= ahora && e.finMs >= ahora) li.className = 'ahora';
@@ -450,9 +671,10 @@
   function programarGuardado() {
     clearTimeout(tGuardar);
     tGuardar = setTimeout(function () {
-      rpc('guardarCheck', leerCheck()).then(function (d) { pintarHoy(d); aviso('Guardado'); })
-        .catch(function (e) { aviso('No se pudo guardar: ' + (e && e.message ? e.message : e)); });
-    }, 600);
+      guardarCheckLocal(leerCheck());
+      pintarHoy(construirHoy());
+      aviso(navigator.onLine ? 'Guardado' : 'Guardado en el teléfono');
+    }, 400);
   }
   document.querySelectorAll('.check').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -537,6 +759,7 @@
   // Al iniciar una tanda se programan el fin del estudio y el fin del descanso.
   function nombreTema(k) { var t = TEMAS.filter(function (x) { return x.k === k; })[0]; return t ? t.n : ''; }
   function programarAlarmas() {
+    if (!navigator.onLine) return;
     var t = timer;
     t.alarmas = t.alarmas || {};
     t.alarmaSeq = (t.alarmaSeq || 0) + 1;
@@ -555,7 +778,11 @@
     var a = timer.alarmas || {};
     timer.alarmaSeq = (timer.alarmaSeq || 0) + 1;
     (cuales || ['estudio', 'descanso']).forEach(function (k) {
-      if (a[k]) rpc('cancelarAlarma', a[k]).catch(function () {});
+      if (a[k]) {
+        var id = a[k];
+        if (navigator.onLine) rpc('cancelarAlarma', id).catch(function () { db.cancelar.push(id); guardarDB(); });
+        else { db.cancelar.push(id); guardarDB(); }
+      }
       delete a[k];
     });
   }
@@ -638,9 +865,10 @@
     persistir(); actualizarReloj();
   }
   function guardarEstudio(tema, minutos, inicio) {
-    rpc('registrarEstudio', { tema: tema, minutos: minutos, inicio: inicio })
-      .then(function (r) { pintarSemana(r); aviso(minutos + ' min guardados'); estado.progreso = null; })
-      .catch(function (e) { aviso('No se pudo guardar: ' + (e && e.message ? e.message : e)); });
+    guardarEstudioLocal(tema, minutos, inicio);
+    pintarSemana(resumenSemana(hoyKey()));
+    estado.progreso = null;
+    aviso(minutos + ' min guardados');
   }
   $('man-guardar').addEventListener('click', function () {
     var m = Math.round(Number($('man-min').value));
@@ -676,9 +904,7 @@
   /* ---------- PROGRESO ---------- */
   var graficos = {};
   function cargarProgreso() {
-    if (estado.progreso) { pintarProgreso(estado.progreso); return; }
-    rpc('getProgreso').then(function (p) { estado.progreso = p; pintarProgreso(p); })
-      .catch(function (e) { aviso('No se pudo cargar el progreso: ' + (e && e.message ? e.message : e)); });
+    pintarProgreso(construirProgreso());
   }
   function kpi(label, valor, suf, delta, menosEsMejor) {
     var d = document.createElement('div'); d.className = 'kpi';
@@ -770,20 +996,23 @@
   pintarDuraciones();
   actualizarReloj();
   if (timer.fase) arrancarTick();
-  rpc('getHoy').then(function (d) {
+  abrirDB().then(function () {
     quitarSplash();
     $('cargando').hidden = true;
-    pintarHoy(d);
+    pintarHoy(construirHoy());
     var v = leerLocal('rt-vista');
     mostrar(v === 'estudio' || v === 'progreso' ? v : 'hoy');
-  }).catch(function (e) {
-    quitarSplash();
-    $('cargando').textContent = 'No pude cargar tu día: ' + (e && e.message ? e.message : e);
+    pintarSync();
+    sincronizar();
   });
+  window.addEventListener('online', function () { pintarSync(); sincronizar(); });
+  window.addEventListener('offline', pintarSync);
+  setInterval(function () { if (document.visibilityState === 'visible') sincronizar(); }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') {
       actualizarReloj();
-      if (estado.vista === 'hoy') rpc('getHoy').then(pintarHoy).catch(function () {});
+      repintar();
+      sincronizar();
     }
   });
 })();
