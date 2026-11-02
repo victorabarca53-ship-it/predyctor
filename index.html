@@ -150,6 +150,8 @@
   .reloj-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .reloj-t { font-family: var(--font-display); font-size: 3rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
   .reloj-f { color: var(--muted); font-size: 0.85rem; }
+  .elegir { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+  .elegir .chips { justify-content: center; }
   .btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
   .btn.primario { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); min-width: 130px; }
@@ -259,10 +261,7 @@
     <div class="card" style="margin-top:14px">
       <h2>Tema</h2>
       <div class="chips" id="temas"></div>
-      <div class="row between" style="flex-wrap:wrap; gap:12px">
-        <div><span class="small muted">Estudio</span><div class="chips" id="durs"></div></div>
-        <div><span class="small muted">Descanso</span><div class="chips" id="pausas"></div></div>
-      </div>
+      <div><span class="small muted">Estudio</span><div class="chips" id="durs"></div></div>
     </div>
 
     <div class="card" style="margin-top:14px">
@@ -270,7 +269,12 @@
         <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="pista" cx="60" cy="60" r="52"></circle><circle class="avance" id="avance" cx="60" cy="60" r="52"></circle></svg>
         <div class="reloj-txt"><span class="reloj-t" id="reloj-t">45:00</span><span class="reloj-f" id="reloj-f">Listo para partir</span></div>
       </div>
-      <div class="btns">
+      <div class="elegir" id="elegir-pausa" hidden>
+        <span class="small muted">Tanda guardada. ¿Cuánto descansas?</span>
+        <div class="chips" id="pausas"></div>
+        <button class="btn" id="t-sin-pausa">Sin descanso</button>
+      </div>
+      <div class="btns" id="t-btns">
         <button class="btn primario" id="t-iniciar">Iniciar</button>
         <button class="btn" id="t-guardar" disabled>Terminar y guardar</button>
         <button class="btn" id="t-reset" disabled>Reiniciar</button>
@@ -691,7 +695,9 @@
   /* ---------- ESTUDIO ---------- */
   var temaElegido = null;
   var durMin = leerLocal('rt-dur') || 45;
-  var pausaMin = leerLocal('rt-pausa') || 10;
+  // Último descanso elegido por tema: solo se marca como sugerencia, nunca parte solo.
+  var pausaPorTema = leerLocal('rt-pausas') || {};
+  var PAUSAS = [5, 10, 15, 20];
   var CIRC = 2 * Math.PI * 52;
   $('avance').style.strokeDasharray = CIRC;
 
@@ -712,7 +718,10 @@
   }
   function pintarDuraciones() {
     $('durs').replaceChildren.apply($('durs'), [30, 45, 60].map(function (m) { return chip(m + ' min', m === durMin, null, function () { if (timer.fase) return; durMin = m; guardarLocal('rt-dur', m); pintarDuraciones(); actualizarReloj(); }); }));
-    $('pausas').replaceChildren.apply($('pausas'), [10, 15].map(function (m) { return chip(m + ' min', m === pausaMin, null, function () { pausaMin = m; guardarLocal('rt-pausa', m); pintarDuraciones(); }); }));
+  }
+  function pintarPausas() {
+    var ultima = pausaPorTema[timer.tema];
+    $('pausas').replaceChildren.apply($('pausas'), PAUSAS.map(function (m) { return chip(m + ' min', m === ultima, null, function () { empezarDescanso(m); }); }));
   }
 
   // fase: null | 'estudio' | 'descanso'; tiempos por marca de reloj para sobrevivir al bloqueo de pantalla
@@ -730,7 +739,10 @@
     $('avance').style.strokeDashoffset = String(CIRC * (1 - (total ? (total - r) / total : 0)));
     $('reloj').classList.toggle('descanso', timer.fase === 'descanso');
     var tema = TEMAS.filter(function (t) { return t.k === (timer.tema || temaElegido); })[0];
-    $('reloj-f').textContent = timer.fase === 'descanso' ? 'Descanso' : timer.fase ? (timer.corriendo ? 'En foco · ' : 'En pausa · ') + (tema ? tema.n : '') : 'Listo para partir';
+    var eligiendo = timer.fase === 'elegir';
+    $('elegir-pausa').hidden = !eligiendo;
+    $('t-btns').hidden = eligiendo;
+    $('reloj-f').textContent = eligiendo ? 'Elige tu descanso' : timer.fase === 'descanso' ? 'Descanso' : timer.fase ? (timer.corriendo ? 'En foco · ' : 'En pausa · ') + (tema ? tema.n : '') : 'Listo para partir';
     $('t-iniciar').textContent = timer.corriendo ? 'Pausar' : timer.fase ? 'Seguir' : 'Iniciar';
     $('t-guardar').disabled = timer.fase !== 'estudio';
     $('t-reset').disabled = !timer.fase;
@@ -759,13 +771,18 @@
   // Al iniciar una tanda se programan el fin del estudio y el fin del descanso.
   function nombreTema(k) { var t = TEMAS.filter(function (x) { return x.k === k; })[0]; return t ? t.n : ''; }
   function programarAlarmas() {
-    if (!navigator.onLine) return;
     var t = timer;
+    if (!navigator.onLine) {
+      t.alarmaPendiente = true;
+      aviso('Sin señal: no quedó alarma en Calendar. Deja Predyctor abierto.');
+      return;
+    }
+    t.alarmaPendiente = false;
     t.alarmas = t.alarmas || {};
     t.alarmaSeq = (t.alarmaSeq || 0) + 1;
     var seq = t.alarmaSeq;
     var pedidos = t.fase === 'estudio'
-      ? [['estudio', t.finMs, 'Fin del estudio · ' + nombreTema(t.tema)], ['descanso', t.finMs + pausaMin * 60000, 'Fin del descanso']]
+      ? [['estudio', t.finMs, 'Fin del estudio · ' + nombreTema(t.tema)]]
       : [['descanso', t.finMs, 'Fin del descanso']];
     pedidos.forEach(function (p) {
       rpc('programarAlarma', p[1], p[2]).then(function (id) {
@@ -800,7 +817,7 @@
   function avisoEnCurso() {
     if (!timer.corriendo) return;
     var base = { tag: 'predyctor-en-curso', silent: true, renotify: false, timestamp: timer.finMs };
-    if (timer.fase === 'estudio') notificar('⏳ En foco · ' + nombreTema(timer.tema), Object.assign(base, { body: 'Termina a las ' + horaCorta(timer.finMs) + '. Después, ' + pausaMin + ' min de descanso.' }));
+    if (timer.fase === 'estudio') notificar('⏳ En foco · ' + nombreTema(timer.tema), Object.assign(base, { body: 'Termina a las ' + horaCorta(timer.finMs) + '.' }));
     else if (timer.fase === 'descanso') notificar('☕ Descanso', Object.assign(base, { body: 'Vuelves al foco a las ' + horaCorta(timer.finMs) + '.' }));
   }
   function avisoFin(titulo, cuerpo) {
@@ -817,6 +834,7 @@
   }
 
   $('t-iniciar').addEventListener('click', function () {
+    if (timer.fase === 'elegir') return;
     if (!timer.fase) {
       var ahora = new Date();
       timer = { fase: 'estudio', corriendo: true, totalMs: durMin * 60000, finMs: Date.now() + durMin * 60000, restanteMs: 0, tema: temaElegido, inicio: String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0') };
@@ -845,16 +863,13 @@
     sonar();
     if (timer.fase === 'estudio') {
       guardarEstudio(timer.tema, Math.round(timer.totalMs / 60000), timer.inicio);
-      // El descanso parte cuando terminó el estudio, no cuando volviste a abrir la app,
-      // para que calce con la alarma que ya quedó programada en Calendar.
-      cancelarAlarmas(['estudio']);
-      var alarmas = timer.alarmas || {};
-      var finEstudio = timer.finMs;
-      timer = { fase: 'descanso', corriendo: true, totalMs: pausaMin * 60000, finMs: finEstudio + pausaMin * 60000, restanteMs: 0, tema: timer.tema, inicio: '', alarmas: { descanso: alarmas.descanso }, alarmaSeq: timer.alarmaSeq };
-      if (!alarmas.descanso && timer.finMs > Date.now()) programarAlarmas();
-      aviso('Tanda guardada. A descansar ' + pausaMin + ' min.');
-      avisoFin('✅ Fin del estudio', 'A descansar ' + pausaMin + ' min. Vuelves a las ' + horaCorta(timer.finMs) + '.');
-      avisoEnCurso();
+      // El descanso no parte solo: Tito lo elige (o lo salta) al terminar cada tanda.
+      cancelarAlarmas(); cerrarAvisoEnCurso();
+      timer = { fase: 'elegir', corriendo: false, totalMs: timer.totalMs, finMs: 0, restanteMs: 0, tema: timer.tema, inicio: '' };
+      soltarWake();
+      pintarPausas();
+      aviso('Tanda guardada. Elige tu descanso.');
+      avisoFin('✅ Fin del estudio', 'Tanda guardada. Abre Predyctor y elige cuánto descansas.');
     } else {
       cancelarAlarmas(); cerrarAvisoEnCurso();
       avisoFin('🐆 Fin del descanso', '¿Otra tanda? Toca para volver a Predyctor.');
@@ -864,6 +879,18 @@
     }
     persistir(); actualizarReloj();
   }
+  function empezarDescanso(m) {
+    if (timer.fase !== 'elegir') return;
+    pausaPorTema[timer.tema] = m; guardarLocal('rt-pausas', pausaPorTema);
+    timer = { fase: 'descanso', corriendo: true, totalMs: m * 60000, finMs: Date.now() + m * 60000, restanteMs: 0, tema: timer.tema, inicio: '' };
+    pedirWake(); programarAlarmas(); pedirPermisoYAvisar();
+    persistir(); actualizarReloj(); arrancarTick();
+  }
+  $('t-sin-pausa').addEventListener('click', function () {
+    timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+    persistir(); actualizarReloj();
+    aviso('Sin descanso. Cuando quieras, otra tanda.');
+  });
   function guardarEstudio(tema, minutos, inicio) {
     guardarEstudioLocal(tema, minutos, inicio);
     pintarSemana(resumenSemana(hoyKey()));
@@ -994,6 +1021,7 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   if (!leerLocal('rt-clave')) { quitarSplash(); mostrarVincular(); return; }
   pintarDuraciones();
+  if (timer.fase === 'elegir') pintarPausas();
   actualizarReloj();
   if (timer.fase) arrancarTick();
   abrirDB().then(function () {
@@ -1005,7 +1033,11 @@
     pintarSync();
     sincronizar();
   });
-  window.addEventListener('online', function () { pintarSync(); sincronizar(); });
+  window.addEventListener('online', function () {
+    pintarSync(); sincronizar();
+    // Si la tanda partió sin señal, la alarma de Calendar se pone apenas vuelve.
+    if (timer.corriendo && timer.alarmaPendiente && timer.finMs > Date.now() + 60000) programarAlarmas();
+  });
   window.addEventListener('offline', pintarSync);
   setInterval(function () { if (document.visibilityState === 'visible') sincronizar(); }, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', function () {
