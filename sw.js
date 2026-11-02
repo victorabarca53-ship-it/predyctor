@@ -1,7 +1,7 @@
 // Sube la versión cada vez que cambien los archivos de la app.
-const CACHE = 'predyctor-v8';
+const CACHE = 'predyctor-v9';
 const SHELL = [
-  './', './index.html', './manifest.webmanifest', './favicon.ico',
+  './', './index.html', './config.js', './manifest.webmanifest', './favicon.ico',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
   './vendor/chart.umd.min.js',
   './vendor/fonts/sora-latin-500-normal.woff2', './vendor/fonts/sora-latin-600-normal.woff2', './vendor/fonts/sora-latin-700-normal.woff2',

@@ -8,6 +8,16 @@
 <meta name="description" content="Acecha tus metas. No bajes el ritmo.">
 <meta name="theme-color" content="#f2f3ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#101412" media="(prefers-color-scheme: dark)">
+<script>
+  (function () {
+    try {
+      var r = document.documentElement;
+      r.dataset.paleta = JSON.parse(localStorage.getItem('rt-paleta')) || 'sendero';
+      var m = JSON.parse(localStorage.getItem('rt-modo-color'));
+      if (m === 'claro' || m === 'oscuro') r.dataset.modo = m;
+    } catch (e) {}
+  })();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
@@ -34,11 +44,6 @@
     --ok: #2e8b57;
     --warn: #c48912;
     --bad: #c2453b;
-    --t-trading: #3d6fb6;
-    --t-tienda: #d9822b;
-    --t-pega: #7a5bb5;
-    --t-skool: #2f8f7a;
-    --t-trabajo: #5b6770;
     --heat-0: #e7eae2;
     --heat-1: #c6dccf;
     --heat-2: #8fc0a7;
@@ -50,7 +55,7 @@
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-modo="claro"]) {
       --bg: #101412;
       --panel: #19201c;
       --panel-2: #1f2722;
@@ -63,11 +68,6 @@
       --ok: #5cc28a;
       --warn: #e2b04a;
       --bad: #e3776d;
-      --t-trading: #79a3e0;
-      --t-tienda: #e8a256;
-      --t-pega: #ab90e0;
-      --t-skool: #5fbfa6;
-      --t-trabajo: #a3afb8;
       --heat-0: #232b26;
       --heat-1: #2c4a3e;
       --heat-2: #33705a;
@@ -76,6 +76,36 @@
       color-scheme: dark;
     }
   }
+  :root[data-modo="oscuro"] {
+      --bg: #101412;
+      --panel: #19201c;
+      --panel-2: #1f2722;
+      --ink: #e7ece9;
+      --muted: #98a39d;
+      --line: #2a332e;
+      --accent: #5fb39a;
+      --accent-ink: #0d1a15;
+      --amber: #e8a256;
+      --ok: #5cc28a;
+      --warn: #e2b04a;
+      --bad: #e3776d;
+      --heat-0: #232b26;
+      --heat-1: #2c4a3e;
+      --heat-2: #33705a;
+      --heat-3: #45967a;
+      --heat-4: #5fb39a;
+      color-scheme: dark;
+  }
+  /* Paletas extra: se eligen en Ajustes. "Sendero" es la de arriba. */
+  :root[data-paleta="pacifico"] { --bg: #eef2f5; --panel: #ffffff; --panel-2: #f5f8fa; --ink: #16212b; --muted: #5d6b78; --line: #dbe3ea; --accent: #1f5f8b; --accent-ink: #ffffff; --amber: #c4533c; --heat-0: #e3e9ee; --heat-1: #c3d6e5; --heat-2: #8db4d2; --heat-3: #4d88b5; --heat-4: #1f5f8b; }
+  :root[data-paleta="pacifico"][data-modo="oscuro"] { --bg: #0e141a; --panel: #161e26; --panel-2: #1c2630; --ink: #e6edf3; --muted: #93a2af; --line: #27323d; --accent: #6aaee0; --accent-ink: #0b1722; --amber: #f08a73; --heat-0: #1f2a35; --heat-1: #23405a; --heat-2: #2f6188; --heat-3: #4a8bbd; --heat-4: #6aaee0; }
+  @media (prefers-color-scheme: dark) { :root[data-paleta="pacifico"]:not([data-modo="claro"]) { --bg: #0e141a; --panel: #161e26; --panel-2: #1c2630; --ink: #e6edf3; --muted: #93a2af; --line: #27323d; --accent: #6aaee0; --accent-ink: #0b1722; --amber: #f08a73; --heat-0: #1f2a35; --heat-1: #23405a; --heat-2: #2f6188; --heat-3: #4a8bbd; --heat-4: #6aaee0; } }
+  :root[data-paleta="atacama"] { --bg: #f6f1ea; --panel: #fffdfa; --panel-2: #faf5ee; --ink: #2a1f18; --muted: #76665a; --line: #eadfd2; --accent: #a94c25; --accent-ink: #ffffff; --amber: #2a7a80; --heat-0: #efe6dc; --heat-1: #efcdb6; --heat-2: #e0a07c; --heat-3: #c9744a; --heat-4: #a94c25; }
+  :root[data-paleta="atacama"][data-modo="oscuro"] { --bg: #16110e; --panel: #201914; --panel-2: #271f19; --ink: #f1e9e1; --muted: #a9998c; --line: #33281f; --accent: #e08a5c; --accent-ink: #1d120b; --amber: #5fb8bf; --heat-0: #2a211a; --heat-1: #4a2f20; --heat-2: #7a4429; --heat-3: #b0633a; --heat-4: #e08a5c; }
+  @media (prefers-color-scheme: dark) { :root[data-paleta="atacama"]:not([data-modo="claro"]) { --bg: #16110e; --panel: #201914; --panel-2: #271f19; --ink: #f1e9e1; --muted: #a9998c; --line: #33281f; --accent: #e08a5c; --accent-ink: #1d120b; --amber: #5fb8bf; --heat-0: #2a211a; --heat-1: #4a2f20; --heat-2: #7a4429; --heat-3: #b0633a; --heat-4: #e08a5c; } }
+  :root[data-paleta="cordillera"] { --bg: #f1f1f6; --panel: #ffffff; --panel-2: #f7f7fb; --ink: #1d1d2c; --muted: #63637a; --line: #e2e2ec; --accent: #4a4ea6; --accent-ink: #ffffff; --amber: #94700e; --heat-0: #e6e6f0; --heat-1: #cacbe9; --heat-2: #9c9fd8; --heat-3: #6c70c0; --heat-4: #4a4ea6; }
+  :root[data-paleta="cordillera"][data-modo="oscuro"] { --bg: #101019; --panel: #181824; --panel-2: #1e1e2c; --ink: #e8e8f2; --muted: #9a9ab0; --line: #2a2a3a; --accent: #8f93e6; --accent-ink: #12122a; --amber: #e3b84a; --heat-0: #222232; --heat-1: #2e2f55; --heat-2: #41437f; --heat-3: #6266b5; --heat-4: #8f93e6; }
+  @media (prefers-color-scheme: dark) { :root[data-paleta="cordillera"]:not([data-modo="claro"]) { --bg: #101019; --panel: #181824; --panel-2: #1e1e2c; --ink: #e8e8f2; --muted: #9a9ab0; --line: #2a2a3a; --accent: #8f93e6; --accent-ink: #12122a; --amber: #e3b84a; --heat-0: #222232; --heat-1: #2e2f55; --heat-2: #41437f; --heat-3: #6266b5; --heat-4: #8f93e6; } }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; -webkit-tap-highlight-color: transparent; }
   body { min-height: 100vh; }
@@ -119,6 +149,22 @@
   .agenda .lapiz { color: var(--muted); font-size: 0.85rem; padding-left: 4px; }
   .agenda .marca { display: inline-block; margin-left: 6px; font-size: 0.72rem; font-weight: 500; color: var(--warn); }
   .agenda-pista { font-size: 0.78rem; color: var(--muted); margin: -4px 0 0; }
+
+  /* Ajustes */
+  .top { position: relative; }
+  .ajustes-btn { position: absolute; top: 0; right: 0; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+  .ajustes-btn svg { width: 20px; height: 20px; }
+  .ajustes-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  .paletas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .paleta { border: 1px solid var(--line); background: var(--panel-2); border-radius: 12px; padding: 10px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+  .paleta[aria-checked="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .paleta .muestra { display: flex; height: 34px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,.08); }
+  .paleta .muestra span { flex: 1; }
+  .paleta .muestra span:first-child { flex: 2; }
+  .paleta b { font-weight: 600; font-size: 0.9rem; }
+  .paleta small { color: var(--muted); font-size: 0.76rem; margin-top: -6px; }
+  .modo.tres { grid-template-columns: repeat(3, 1fr); }
+  .modo.tres button[aria-checked="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 
   /* Hoja para editar una actividad */
   dialog.hoja { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 520px; background: var(--panel); color: var(--ink); border-radius: 18px 18px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.25); }
@@ -182,6 +228,7 @@
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
   .btn.primario { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); min-width: 130px; }
   .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn.primario.descanso { background: var(--amber); border-color: var(--amber); color: var(--accent-ink); }
   .barra { height: 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; display: flex; }
   .barra span { height: 100%; }
   .leyenda { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 0.85rem; }
@@ -263,11 +310,30 @@
     </form>
   </dialog>
 
+<dialog class="hoja" id="hoja-ajustes" aria-labelledby="aj-titulo">
+    <div class="hoja-in">
+      <span class="asa" aria-hidden="true"></span>
+      <h2 id="aj-titulo">Colores</h2>
+      <div class="paletas" id="paletas" role="radiogroup" aria-label="Paleta de colores"></div>
+      <h2>Modo</h2>
+      <div class="modo tres" id="modos-color" role="radiogroup" aria-label="Modo claro u oscuro">
+        <button type="button" role="radio" data-m="auto">Automático</button>
+        <button type="button" role="radio" data-m="claro">Claro</button>
+        <button type="button" role="radio" data-m="oscuro">Oscuro</button>
+      </div>
+      <p class="small muted" style="margin:0">Automático sigue el modo de tu teléfono. Se guarda solo en este equipo.</p>
+      <button type="button" class="btn" id="aj-cerrar">Listo</button>
+    </div>
+  </dialog>
+
   <div class="cargando" id="cargando">Cargando tu día…</div>
 
   <!-- HOY -->
   <section id="v-hoy" hidden>
     <div class="top">
+      <button class="ajustes-btn" id="abrir-ajustes" aria-label="Ajustes: colores y modo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a5 5 0 0 0 5-5c0-4.4-4.5-8.7-10-8.7z"/></svg>
+      </button>
       <span class="fecha" id="hoy-fecha"></span>
       <h1>Hoy</h1>
       <span class="toca"><span class="dot" id="toca-dot"></span><span id="toca-txt"></span></span>
@@ -378,16 +444,23 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="vendor/chart.umd.min.js"></script>
+<script src="config.js"></script>
 <script>
 (function () {
   'use strict';
-  var TEMAS = [
-    { k: 'h_trading', n: 'Trading', c: '--t-trading' },
-    { k: 'h_tienda', n: 'Tienda / ML', c: '--t-tienda' },
-    { k: 'h_busqueda_pega', n: 'Búsqueda de pega', c: '--t-pega' },
-    { k: 'h_skool', n: 'Skool', c: '--t-skool' },
-    { k: 'h_trabajo', n: 'Trabajo', c: '--t-trabajo', trabajo: true }
-  ];
+  // Todo lo personal (temas, rotación, metas, motor) vive en config.js.
+  var CFG = window.PREDYCTOR_CONFIG || {};
+  var TEMAS = (CFG.temas || []).map(function (t, i) {
+    return { k: t.k, n: t.n, c: '--tema-' + i, trabajo: !!t.trabajo, color: t.color || ['#65706a', '#98a39d'] };
+  });
+  (function colorTemas() {
+    var claro = TEMAS.map(function (t) { return t.c + ': ' + t.color[0] + ';'; }).join(' ');
+    var oscuro = TEMAS.map(function (t) { return t.c + ': ' + (t.color[1] || t.color[0]) + ';'; }).join(' ');
+    var st = document.createElement('style');
+    st.textContent = ':root { ' + claro + ' } :root[data-modo="oscuro"] { ' + oscuro + ' } ' +
+      '@media (prefers-color-scheme: dark) { :root:not([data-modo="claro"]) { ' + oscuro + ' } }';
+    document.head.appendChild(st);
+  })();
   var ESTUDIO = TEMAS.filter(function (t) { return !t.trabajo; });
   function esDiaHabil() { var d = new Date().getDay(); return d >= 1 && d <= 5; }
   var DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -397,8 +470,8 @@
   var estado = { hoy: null, progreso: null, vista: 'hoy' };
 
   // Motor en Apps Script: solo responde con la clave de este equipo.
-  var API_URL = "https://script.google.com/macros/s/AKfycbxuJfqirwf4nK_jIDoHR8Vo6JOirTdGTQgEVmF05lx-ht2KG_tZMc_R7gv7Fy65pY_g/exec";
-  var VINCULAR_URL = "https://script.google.com/macros/s/AKfycbzJGTDuuUG6g9EjWG_lTVxAdxDhJRCO7GdUVXBjnSrbVp3alROKhaGi90o8S_jaDzA/exec?vincular=1";
+  var API_URL = CFG.apiUrl || '';
+  var VINCULAR_URL = CFG.vincularUrl || '';
   function rpc(fn) {
     var args = Array.prototype.slice.call(arguments, 1);
     var clave = leerLocal('rt-clave');
@@ -441,19 +514,18 @@
   /* ---------- Datos en el teléfono (funciona sin internet) ----------
      Todo se guarda primero aquí (IndexedDB). Cada cambio entra a una cola
      y se manda a la hoja de Google cuando hay señal. */
-  var TZ = 'America/Santiago';
-  var DASHBOARD_URL = 'https://claude.ai/artifact/MNW7zqfSmf58DYa8PrzNpJ';
-  var BASE = { semana: '2026-10-12', instagram_h_dia: 3.5, bloques_foco: 0, celular_fuera: 0, sin_ig_despertar: 0, entrenos: 5, postulaciones: 0, h_trading: 0, h_tienda: 0, h_busqueda_pega: 0, h_skool: 0, h_trabajo: 0 };
-  var PRIMERA_SEMANA = '2026-10-19';
-  var ROTACION = {
-    0: { tema: null, texto: 'Finanzas 17:00 · estudio largo 17:30' },
-    1: { tema: 'h_trading', texto: 'Trading demo · 21:00' },
-    2: { tema: 'h_busqueda_pega', texto: 'Postulaciones a minería · 21:15' },
-    3: { tema: 'h_tienda', texto: 'Tienda / Mercado Libre · 21:00' },
-    4: { tema: 'h_skool', texto: 'Academia Skool · 21:15' },
-    5: { tema: null, texto: 'Acondicionamiento 19:15 · después libre' },
-    6: { tema: 'h_tienda', texto: 'Tienda (mañana, o tarde si hay cerro)' }
-  };
+  var TZ = CFG.zonaHoraria || 'America/Santiago';
+  var DASHBOARD_URL = CFG.tableroUrl || '';
+  var META_ESTUDIO_MIN = CFG.metaEstudioMin || 360;
+  var BASE = (function () {
+    var lb = CFG.lineaBase || {};
+    var b = { semana: lb.semana || '2026-01-05', instagram_h_dia: lb.instagram_h_dia == null ? 3 : lb.instagram_h_dia, bloques_foco: 0, celular_fuera: 0, sin_ig_despertar: 0, entrenos: lb.entrenos || 0, postulaciones: 0 };
+    TEMAS.forEach(function (t) { b[t.k] = 0; });
+    return b;
+  })();
+  var PRIMERA_SEMANA = CFG.primeraSemana || sumarDias(BASE.semana, 7);
+  var ROTACION = CFG.rotacion || {};
+  [0, 1, 2, 3, 4, 5, 6].forEach(function (d) { if (!ROTACION[d]) ROTACION[d] = { tema: null, texto: 'Día libre' }; });
   var CHECKS = ['celular_fuera', 'sin_ig_despertar', 'entreno', 'bloque'];
   var db = { diario: {}, estudio: {}, agenda: {}, outbox: [], cancelar: [], agendaOps: [], ultimaSync: 0, agendaSync: 0 };
   var idb = null;
@@ -510,7 +582,7 @@
       var r = db.estudio[id];
       if (r && r.fecha >= lunes && r.fecha <= key && semanaMin[r.tema] !== undefined) semanaMin[r.tema] += Number(r.minutos) || 0;
     });
-    return { semanaMin: semanaMin, metaSemanaMin: 360 };
+    return { semanaMin: semanaMin, metaSemanaMin: META_ESTUDIO_MIN };
   }
   function construirHoy() {
     var key = hoyKey();
@@ -534,7 +606,11 @@
   function construirProgreso() {
     var hoy = hoyKey();
     var sem = {};
-    function nueva() { return { bloques: 0, celular: 0, sinIg: 0, entrenos: 0, igSum: 0, igN: 0, post: 0, h_trading: 0, h_tienda: 0, h_busqueda_pega: 0, h_skool: 0, h_trabajo: 0 }; }
+    function nueva() {
+      var n = { bloques: 0, celular: 0, sinIg: 0, entrenos: 0, igSum: 0, igN: 0, post: 0 };
+      TEMAS.forEach(function (t) { n[t.k] = 0; });
+      return n;
+    }
     Object.keys(db.diario).forEach(function (k) {
       var r = db.diario[k]; var w = lunesDe(k);
       var s = sem[w] || (sem[w] = nueva());
@@ -553,8 +629,9 @@
     var filas = [Object.assign({}, BASE)];
     for (var w = PRIMERA_SEMANA; w <= lunesDe(hoy); w = sumarDias(w, 7)) {
       var s = sem[w] || nueva();
-      filas.push({ semana: w, instagram_h_dia: s.igN ? r1(s.igSum / s.igN / 60) : null, bloques_foco: s.bloques, celular_fuera: s.celular, sin_ig_despertar: s.sinIg, entrenos: s.entrenos, postulaciones: s.post,
-        h_trading: r1(s.h_trading), h_tienda: r1(s.h_tienda), h_busqueda_pega: r1(s.h_busqueda_pega), h_skool: r1(s.h_skool), h_trabajo: r1(s.h_trabajo) });
+      var fila = { semana: w, instagram_h_dia: s.igN ? r1(s.igSum / s.igN / 60) : null, bloques_foco: s.bloques, celular_fuera: s.celular, sin_ig_despertar: s.sinIg, entrenos: s.entrenos, postulaciones: s.post };
+      TEMAS.forEach(function (t) { fila[t.k] = r1(s[t.k]); });
+      filas.push(fila);
     }
     var base = BASE.instagram_h_dia;
     var tope = function (v) { return Math.max(0, Math.min(1, v)); };
@@ -563,7 +640,7 @@
       var ig = r.instagram_h_dia === null ? 0 : tope((base - r.instagram_h_dia) / (base - 1));
       return Object.assign({}, r, {
         numero: i,
-        horas_estudio: r1(r.h_trading + r.h_tienda + r.h_busqueda_pega + r.h_skool),
+        horas_estudio: r1(ESTUDIO.reduce(function (a, t) { return a + (r[t.k] || 0); }, 0)),
         puntaje: Math.round(25 * (ig + tope((r.bloques_foco || 0) / 6) + tope(dias / 14) + tope((r.entrenos || 0) / 5)))
       });
     });
@@ -782,6 +859,66 @@
     if (estado.vista === 'progreso') pintarProgreso(construirProgreso());
   }
 
+
+  /* ---------- Ajustes: paleta y modo ---------- */
+  var PALETAS = [
+    { k: 'sendero', n: 'Sendero', d: 'Bosque y linterna', c: { claro: ['#f2f3ee', '#2f6f5e', '#d9822b'], oscuro: ['#101412', '#5fb39a', '#e8a256'] } },
+    { k: 'pacifico', n: 'Pacífico', d: 'Mar y coral', c: { claro: ['#eef2f5', '#1f5f8b', '#c4533c'], oscuro: ['#0e141a', '#6aaee0', '#f08a73'] } },
+    { k: 'atacama', n: 'Atacama', d: 'Greda y oasis', c: { claro: ['#f6f1ea', '#a94c25', '#2a7a80'], oscuro: ['#16110e', '#e08a5c', '#5fb8bf'] } },
+    { k: 'cordillera', n: 'Cordillera', d: 'Noche y oro', c: { claro: ['#f1f1f6', '#4a4ea6', '#94700e'], oscuro: ['#101019', '#8f93e6', '#e3b84a'] } }
+  ];
+  var oscuroSO = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function modoActual() {
+    var m = document.documentElement.dataset.modo;
+    if (m === 'claro' || m === 'oscuro') return m;
+    return oscuroSO && oscuroSO.matches ? 'oscuro' : 'claro';
+  }
+  function pintarBarraSistema() {
+    var metas = document.querySelectorAll('meta[name="theme-color"]');
+    var bg = css('--bg') || '#101412';
+    metas.forEach(function (mt) { mt.removeAttribute('media'); mt.setAttribute('content', bg); });
+  }
+  function aplicarApariencia(paleta, modo) {
+    var r = document.documentElement;
+    if (paleta) { r.dataset.paleta = paleta; guardarLocal('rt-paleta', paleta); }
+    if (modo) {
+      if (modo === 'auto') delete r.dataset.modo; else r.dataset.modo = modo;
+      guardarLocal('rt-modo-color', modo);
+    }
+    pintarBarraSistema();
+    pintarAjustes();
+    if (estado.vista === 'progreso') cargarProgreso();
+  }
+  function pintarAjustes() {
+    var cont = $('paletas'), act = document.documentElement.dataset.paleta || 'sendero', modo = modoActual();
+    cont.replaceChildren();
+    PALETAS.forEach(function (p) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'paleta'; b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(p.k === act));
+      var mu = document.createElement('span'); mu.className = 'muestra';
+      p.c[modo].forEach(function (c) { var x = document.createElement('span'); x.style.background = c; mu.appendChild(x); });
+      var n = document.createElement('b'); n.textContent = p.n;
+      var d = document.createElement('small'); d.textContent = p.d;
+      b.append(mu, n, d);
+      b.addEventListener('click', function () { aplicarApariencia(p.k, null); });
+      cont.appendChild(b);
+    });
+    var elegido = leerLocal('rt-modo-color') || 'auto';
+    document.querySelectorAll('#modos-color button').forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.m === elegido)); });
+  }
+  document.querySelectorAll('#modos-color button').forEach(function (b) { b.addEventListener('click', function () { aplicarApariencia(null, b.dataset.m); }); });
+  $('abrir-ajustes').addEventListener('click', function () {
+    pintarAjustes();
+    var dlg = $('hoja-ajustes');
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  });
+  function cerrarAjustes() { var dlg = $('hoja-ajustes'); if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+  $('aj-cerrar').addEventListener('click', cerrarAjustes);
+  $('hoja-ajustes').addEventListener('click', function (ev) { if (ev.target === $('hoja-ajustes')) cerrarAjustes(); });
+  if (oscuroSO && oscuroSO.addEventListener) oscuroSO.addEventListener('change', function () { pintarBarraSistema(); if (estado.vista === 'progreso') cargarProgreso(); });
+  pintarBarraSistema();
+
   /* ---------- Navegación ---------- */
   function mostrar(v) {
     estado.vista = v;
@@ -863,10 +1000,10 @@
       s.title = fechaCorta(x.fecha) + ': ' + x.puntos + ' de 4';
       return s;
     }));
-    $('dash-link').href = d.dashboardUrl;
+    pintarTablero(d.dashboardUrl);
 
     pintarSemana(d.estudio);
-    if (!temaElegido) elegirTema(d.rotacion.tema || 'h_tienda');
+    if (!temaElegido) elegirTema(d.rotacion.tema || (ESTUDIO[0] || TEMAS[0]).k);
   }
 
   function leerCheck() {
@@ -969,7 +1106,9 @@
     var r = timer.fase ? restante() : total;
     $('reloj-t').textContent = mmss(r);
     $('avance').style.strokeDashoffset = String(CIRC * (1 - (total ? (total - r) / total : 0)));
-    $('reloj').classList.toggle('descanso', timer.fase === 'descanso' || (!timer.fase && modo === 'descanso'));
+    var enDescanso = timer.fase === 'descanso' || (!timer.fase && modo === 'descanso');
+    $('reloj').classList.toggle('descanso', enDescanso);
+    $('t-iniciar').classList.toggle('descanso', enDescanso);
     var tema = TEMAS.filter(function (t) { return t.k === (timer.tema || temaElegido); })[0];
     $('reloj-f').textContent = timer.fase === 'descanso' ? (timer.corriendo ? 'Descansando' : 'Descanso en pausa')
       : timer.fase ? (timer.corriendo ? 'En foco · ' : 'En pausa · ') + (tema ? tema.n : '')
@@ -1148,7 +1287,7 @@
     ESTUDIO.forEach(function (t) { total += r.semanaMin[t.k] || 0; });
     var trab = r.semanaMin.h_trabajo || 0;
     $('sem-trabajo').textContent = trab ? 'Foco en el trabajo esta semana: ' + horas(trab) + ' (no suma a la meta de estudio)' : '';
-    var meta = r.metaSemanaMin || 360;
+    var meta = r.metaSemanaMin || META_ESTUDIO_MIN;
     $('sem-total').textContent = horas(total) + ' de ' + horas(meta);
     $('sem-barra').replaceChildren.apply($('sem-barra'), ESTUDIO.map(function (t) {
       var s = document.createElement('span');
@@ -1185,8 +1324,13 @@
     d.append(l, v, x);
     return d;
   }
+  function pintarTablero(url) {
+    var a = $('dash-link');
+    a.closest('p').hidden = !url;
+    if (url) a.href = url;
+  }
   function pintarProgreso(p) {
-    $('dash-link').href = p.dashboardUrl;
+    pintarTablero(p.dashboardUrl);
     var s = p.semanas;
     var u = s[s.length - 1] || {};
     var a = s[s.length - 2];

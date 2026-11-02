@@ -1,0 +1,15 @@
+{
+  "name": "predyctor",
+  "private": true,
+  "description": "App de rutina personal que funciona sin señal (PWA + Google Apps Script).",
+  "license": "MIT",
+  "scripts": {
+    "test": "node tests/motor.test.js",
+    "serve": "python3 -m http.server 8765 --bind 127.0.0.1",
+    "e2e": "node tests/e2e/offline.test.js && node tests/e2e/descanso.test.js && node tests/e2e/editar.test.js && node tests/e2e/paletas.test.js",
+    "capturas": "node tests/capturas.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}
