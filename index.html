@@ -113,6 +113,27 @@
   .agenda li.ahora .titulo { font-weight: 600; }
   .agenda li.ahora .hora { color: var(--accent); font-weight: 600; }
   .vacio { color: var(--muted); font-size: 0.9rem; padding: 4px 0; }
+  .agenda li.editable { cursor: pointer; grid-template-columns: 92px 1fr auto; border-radius: 8px; }
+  .agenda li.editable:active { background: var(--panel-2); }
+  .agenda li.editable:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  .agenda .lapiz { color: var(--muted); font-size: 0.85rem; padding-left: 4px; }
+  .agenda .marca { display: inline-block; margin-left: 6px; font-size: 0.72rem; font-weight: 500; color: var(--warn); }
+  .agenda-pista { font-size: 0.78rem; color: var(--muted); margin: -4px 0 0; }
+
+  /* Hoja para editar una actividad */
+  dialog.hoja { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 520px; background: var(--panel); color: var(--ink); border-radius: 18px 18px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.25); }
+  dialog.hoja::backdrop { background: rgba(10, 16, 13, 0.55); }
+  .hoja-in { padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; }
+  .hoja-in .asa { width: 40px; height: 4px; border-radius: 2px; background: var(--line); align-self: center; margin-top: -6px; }
+  .hoja-in label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; font-size: 0.9rem; }
+  .hoja-in input[type=text], .hoja-in input[type=time] { padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font: inherit; width: 100%; min-width: 0; }
+  .hoja-in .horas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hoja-in .sugeridas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .hoja-in .sugeridas .chip { padding: 6px 10px; font-size: 0.82rem; }
+  .hoja-in .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hoja-in .acciones .primario { grid-column: 1 / -1; }
+  .btn.peligro { color: var(--bad); }
+  .hoja-in .error { color: var(--bad); font-size: 0.82rem; min-height: 1em; margin: -6px 0 0; }
 
   /* Checks */
   .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -217,6 +238,31 @@
   <p>Acecha tus metas. <b>No bajes el ritmo.</b></p>
 </div>
 <main class="app" id="app">
+  <dialog class="hoja" id="hoja-editar" aria-labelledby="he-titulo">
+    <form method="dialog" class="hoja-in" id="he-form">
+      <span class="asa" aria-hidden="true"></span>
+      <div>
+        <h2 id="he-titulo">Cambiar actividad</h2>
+        <p class="small muted" id="he-sub" style="margin:4px 0 0"></p>
+      </div>
+      <label>Actividad
+        <input type="text" id="he-nombre" maxlength="80" autocomplete="off" enterkeyhint="done">
+      </label>
+      <div class="sugeridas" id="he-sugeridas"></div>
+      <div class="horas" id="he-horas">
+        <label>Desde <input type="time" id="he-ini" step="300"></label>
+        <label>Hasta <input type="time" id="he-fin" step="300"></label>
+      </div>
+      <p class="error" id="he-error"></p>
+      <div class="acciones">
+        <button type="button" class="btn primario" id="he-guardar">Guardar cambios</button>
+        <button type="button" class="btn peligro" id="he-saltar">Saltar hoy</button>
+        <button type="button" class="btn" id="he-cancelar">Cancelar</button>
+      </div>
+      <p class="small muted" style="margin:0;text-align:center">Solo cambia este día. La serie de tu calendario sigue igual.</p>
+    </form>
+  </dialog>
+
   <div class="cargando" id="cargando">Cargando tu día…</div>
 
   <!-- HOY -->
@@ -231,6 +277,7 @@
     <div class="card" style="margin-top:14px">
       <div class="row between"><h2>Agenda</h2><span class="small muted" id="agenda-fuente">Google Calendar</span></div>
       <ul class="agenda" id="agenda"></ul>
+      <p class="agenda-pista" id="agenda-pista" hidden>Toca una actividad para moverla, cambiarla o saltarla hoy.</p>
     </div>
 
     <div class="card" style="margin-top:14px">
@@ -408,7 +455,7 @@
     6: { tema: 'h_tienda', texto: 'Tienda (mañana, o tarde si hay cerro)' }
   };
   var CHECKS = ['celular_fuera', 'sin_ig_despertar', 'entreno', 'bloque'];
-  var db = { diario: {}, estudio: {}, agenda: {}, outbox: [], cancelar: [], ultimaSync: 0, agendaSync: 0 };
+  var db = { diario: {}, estudio: {}, agenda: {}, outbox: [], cancelar: [], agendaOps: [], ultimaSync: 0, agendaSync: 0 };
   var idb = null;
 
   function abrirDB() {
@@ -554,7 +601,7 @@
     var cancelar = (db.cancelar || []).slice(0, 20);
     cancelar.forEach(function (id) { rpc('cancelarAlarma', id).catch(function () {}); });
     db.cancelar = (db.cancelar || []).slice(cancelar.length);
-    rpc('sync', { ops: ops }).then(function (res) {
+    subirAgenda().then(function () { return rpc('sync', { ops: ops }); }).then(function (res) {
       var aplicados = {};
       (res.aplicados || []).forEach(function (id) { aplicados[id] = true; });
       db.outbox = db.outbox.filter(function (o) { return !aplicados[o.opId]; });
@@ -569,6 +616,7 @@
         Object.keys(res.agenda).forEach(function (k) { db.agenda[k] = res.agenda[k]; });
         var corte = sumarDias(hoyKey(), -7);
         Object.keys(db.agenda).forEach(function (k) { if (k < corte) delete db.agenda[k]; });
+        (db.agendaOps || []).forEach(aplicarEdicionLocal);
         db.agendaSync = Date.now();
       }
       db.ultimaSync = Date.now();
@@ -580,12 +628,147 @@
     }).then(function () {
       sincronizando = false;
       pintarSync();
-      if (db.outbox.length && !db.error) programarSync();
+      if ((db.outbox.length || (db.agendaOps || []).length) && !db.error) programarSync();
     });
   }
+
+  // Cambios de agenda: se aplican al tiro en el teléfono y se suben a Calendar cuando hay señal.
+  function subirAgenda() {
+    var ops = (db.agendaOps || []).slice(0, 30);
+    if (!ops.length) return Promise.resolve();
+    return rpc('editarAgenda', { ops: ops }).then(function (res) {
+      var listos = {};
+      (res.aplicados || []).forEach(function (id) { listos[id] = true; });
+      var fallas = res.errores || [];
+      fallas.forEach(function (f) { listos[f.opId] = true; });
+      db.agendaOps = db.agendaOps.filter(function (o) { return !listos[o.opId]; });
+      guardarDB();
+      if (fallas.length) aviso('No pude cambiar ' + (fallas.length === 1 ? 'una actividad' : fallas.length + ' actividades') + ' en Calendar: ' + fallas[0].error);
+    });
+  }
+  function mismoEvento(e, op) { return e.id === op.id && Math.abs(e.inicioMs - op.inicioMs) < 60000; }
+  function aplicarEdicionLocal(op) {
+    var lista = db.agenda[op.fecha];
+    if (!lista) return;
+    var i = -1;
+    lista.forEach(function (e, j) { if (i < 0 && mismoEvento(e, op)) i = j; });
+    if (i < 0) {
+      // Ya viene cambiado desde Calendar: no hay nada que superponer.
+      return;
+    }
+    if (op.accion === 'saltar') { lista.splice(i, 1); return; }
+    var e = Object.assign({}, lista[i]);
+    if (op.titulo) e.titulo = op.titulo;
+    if (op.nuevoInicioMs && !e.todoElDia) {
+      e.inicioMs = op.nuevoInicioMs; e.finMs = op.nuevoFinMs;
+      e.inicio = hhmmDe(op.nuevoInicioMs); e.fin = hhmmDe(op.nuevoFinMs);
+    }
+    e.pendiente = true;
+    lista[i] = e;
+    lista.sort(function (a, b) { return (a.todoElDia ? 0 : a.inicioMs) - (b.todoElDia ? 0 : b.inicioMs); });
+  }
+  function encolarEdicion(op) {
+    op.opId = nuevoId();
+    // Si ya había un cambio pendiente para la misma actividad, se combina: Calendar todavía tiene la hora original.
+    var previo = null;
+    db.agendaOps = (db.agendaOps || []).filter(function (o) {
+      var mismo = o.id === op.id && o.fecha === op.fecha && Math.abs((o.nuevoInicioMs || o.inicioMs) - op.inicioMs) < 60000;
+      if (mismo) previo = o;
+      return !mismo;
+    });
+    if (previo) {
+      op.inicioMs = previo.inicioMs;
+      if (op.accion !== 'saltar') {
+        if (!op.titulo && previo.titulo) op.titulo = previo.titulo;
+        if (!op.nuevoInicioMs && previo.nuevoInicioMs) { op.nuevoInicioMs = previo.nuevoInicioMs; op.nuevoFinMs = previo.nuevoFinMs; }
+      }
+    }
+    db.agendaOps.push(op);
+    aplicarEdicionLocal(Object.assign({}, op, { inicioMs: previo ? (previo.nuevoInicioMs || previo.inicioMs) : op.inicioMs }));
+    guardarDB();
+    repintar();
+    programarSync();
+  }
+
+  // Hora local de Santiago, sin depender de la zona del teléfono.
+  function offsetTZ(ms) {
+    var p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      .formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - Math.floor(ms / 1000) * 1000;
+  }
+  function msEnTZ(fecha, hhmm) {
+    var d = fecha.split('-').map(Number), h = hhmm.split(':').map(Number);
+    var g = Date.UTC(d[0], d[1] - 1, d[2], h[0], h[1]);
+    var ms = g - offsetTZ(g);
+    return g - offsetTZ(ms);
+  }
+  function hhmmDe(ms) {
+    return new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms));
+  }
+
+  var editando = null;
+  function abrirEdicion(e, fecha) {
+    editando = { e: e, fecha: fecha };
+    $('he-sub').textContent = (e.todoElDia ? 'Todo el día' : e.inicio + '–' + e.fin) + ' · ' + e.titulo;
+    $('he-nombre').value = e.titulo;
+    $('he-horas').hidden = !!e.todoElDia;
+    $('he-ini').value = e.todoElDia ? '' : e.inicio;
+    $('he-fin').value = e.todoElDia ? '' : e.fin;
+    $('he-error').textContent = '';
+    var vistos = {}, sug = $('he-sugeridas');
+    sug.replaceChildren();
+    Object.keys(db.agenda).sort().forEach(function (k) {
+      (db.agenda[k] || []).forEach(function (x) {
+        var t = x.titulo || '';
+        if (!t || t.charAt(0) === '\u23F0' || vistos[t] || t === e.titulo) return;
+        vistos[t] = true;
+      });
+    });
+    Object.keys(vistos).slice(0, 8).forEach(function (t) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = t;
+      b.addEventListener('click', function () { $('he-nombre').value = t; });
+      sug.appendChild(b);
+    });
+    sug.hidden = !sug.children.length;
+    var dlg = $('hoja-editar');
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+  function cerrarEdicion() { var dlg = $('hoja-editar'); if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); editando = null; }
+  $('he-cancelar').addEventListener('click', cerrarEdicion);
+  $('hoja-editar').addEventListener('click', function (ev) { if (ev.target === $('hoja-editar')) cerrarEdicion(); });
+  $('he-saltar').addEventListener('click', function () {
+    if (!editando) return;
+    var e = editando.e;
+    encolarEdicion({ accion: 'saltar', id: e.id, fecha: editando.fecha, inicioMs: e.inicioMs, tituloOriginal: e.titulo });
+    cerrarEdicion();
+    aviso('Listo, "' + e.titulo + '" quedó fuera de hoy.');
+  });
+  $('he-guardar').addEventListener('click', function () {
+    if (!editando) return;
+    var e = editando.e, op = { accion: 'editar', id: e.id, fecha: editando.fecha, inicioMs: e.inicioMs, tituloOriginal: e.titulo };
+    var nombre = $('he-nombre').value.trim().replace(/\s+/g, ' ');
+    if (!nombre) { $('he-error').textContent = 'Ponle un nombre a la actividad.'; return; }
+    if (nombre !== e.titulo) op.titulo = nombre;
+    if (!e.todoElDia) {
+      var hi = $('he-ini').value, hf = $('he-fin').value;
+      if (!hi || !hf) { $('he-error').textContent = 'Falta la hora de inicio o de término.'; return; }
+      if (hi !== e.inicio || hf !== e.fin) {
+        var ini = msEnTZ(editando.fecha, hi), fin = msEnTZ(editando.fecha, hf);
+        if (fin <= ini) fin += 24 * 3600e3; // termina pasada la medianoche
+        if (fin - ini > 12 * 3600e3) { $('he-error').textContent = 'Una actividad no puede durar más de 12 horas.'; return; }
+        op.nuevoInicioMs = ini; op.nuevoFinMs = fin;
+      }
+    }
+    if (!op.titulo && !op.nuevoInicioMs) { cerrarEdicion(); return; }
+    encolarEdicion(op);
+    cerrarEdicion();
+    aviso(navigator.onLine ? 'Cambio guardado. Lo paso a tu Calendar.' : 'Cambio guardado. Lo paso a tu Calendar cuando vuelva la señal.');
+  });
   function pintarSync() {
     var el = $('sync-estado'); if (!el) return;
-    var n = db.outbox.length;
+    var n = db.outbox.length + (db.agendaOps || []).length;
     var cuando = db.ultimaSync ? 'a las ' + horaDe(db.ultimaSync) : 'todavía no';
     if (sincronizando) { el.dataset.e = 'pendiente'; el.textContent = 'Sincronizando…'; }
     else if (!navigator.onLine) { el.dataset.e = 'offline'; el.textContent = 'Sin conexión' + (n ? ' · ' + n + (n === 1 ? ' cambio guardado' : ' cambios guardados') + ' en el teléfono' : ' · todo guardado en el teléfono'); }
@@ -629,6 +812,7 @@
       li0.textContent = d.agenda ? 'Nada agendado para hoy.' : 'La agenda se descarga la primera vez que tengas señal.';
       ul.appendChild(li0);
     }
+    var hayEditables = false;
     eventos.forEach(function (e) {
       var li = document.createElement('li');
       if (!e.todoElDia && e.finMs < ahora) li.className = 'pasado';
@@ -639,9 +823,28 @@
       var t = document.createElement('span');
       t.className = 'titulo';
       t.textContent = e.titulo;
+      if (e.pendiente) {
+        var m = document.createElement('span');
+        m.className = 'marca'; m.textContent = 'por subir';
+        t.appendChild(m);
+      }
       li.append(h, t);
+      var esAlarma = (e.titulo || '').charAt(0) === '\u23F0';
+      if (e.id && !esAlarma && (e.todoElDia || e.finMs >= ahora)) {
+        hayEditables = true;
+        li.classList.add('editable');
+        li.tabIndex = 0;
+        li.setAttribute('role', 'button');
+        li.setAttribute('aria-label', 'Cambiar ' + e.titulo);
+        var l = document.createElement('span');
+        l.className = 'lapiz'; l.setAttribute('aria-hidden', 'true'); l.textContent = '\u270E';
+        li.appendChild(l);
+        li.addEventListener('click', function () { abrirEdicion(e, d.fecha); });
+        li.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirEdicion(e, d.fecha); } });
+      }
       ul.appendChild(li);
     });
+    $('agenda-pista').hidden = !hayEditables;
 
     var n = 0;
     document.querySelectorAll('.check').forEach(function (b) {
