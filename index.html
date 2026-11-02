@@ -150,8 +150,13 @@
   .reloj-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .reloj-t { font-family: var(--font-display); font-size: 3rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
   .reloj-f { color: var(--muted); font-size: 0.85rem; }
-  .elegir { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
-  .elegir .chips { justify-content: center; }
+  .modo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; }
+  .modo button { border: 0; background: none; border-radius: 9px; padding: 9px 8px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .modo button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .modo button#m-descanso[aria-selected="true"] { color: var(--amber); }
+  .modo button:disabled { cursor: default; }
+  .dur-modo { justify-content: center; }
+  .pista-txt { text-align: center; font-size: 0.82rem; color: var(--muted); min-height: 1.2em; }
   .btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
   .btn.primario { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); min-width: 130px; }
@@ -261,19 +266,19 @@
     <div class="card" style="margin-top:14px">
       <h2>Tema</h2>
       <div class="chips" id="temas"></div>
-      <div><span class="small muted">Estudio</span><div class="chips" id="durs"></div></div>
     </div>
 
     <div class="card" style="margin-top:14px">
+      <div class="modo" role="tablist" aria-label="Tipo de tiempo">
+        <button role="tab" id="m-foco" aria-selected="true">Foco</button>
+        <button role="tab" id="m-descanso" aria-selected="false">Descanso</button>
+      </div>
+      <div class="chips dur-modo" id="durs"></div>
       <div class="reloj" id="reloj">
         <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="pista" cx="60" cy="60" r="52"></circle><circle class="avance" id="avance" cx="60" cy="60" r="52"></circle></svg>
         <div class="reloj-txt"><span class="reloj-t" id="reloj-t">45:00</span><span class="reloj-f" id="reloj-f">Listo para partir</span></div>
       </div>
-      <div class="elegir" id="elegir-pausa" hidden>
-        <span class="small muted">Tanda guardada. ¿Cuánto descansas?</span>
-        <div class="chips" id="pausas"></div>
-        <button class="btn" id="t-sin-pausa">Sin descanso</button>
-      </div>
+      <p class="pista-txt" id="pista"></p>
       <div class="btns" id="t-btns">
         <button class="btn primario" id="t-iniciar">Iniciar</button>
         <button class="btn" id="t-guardar" disabled>Terminar y guardar</button>
@@ -698,6 +703,11 @@
   // Último descanso elegido por tema: solo se marca como sugerencia, nunca parte solo.
   var pausaPorTema = leerLocal('rt-pausas') || {};
   var PAUSAS = [5, 10, 15, 20];
+  var FOCOS = [30, 45, 60];
+  var pausaMin = leerLocal('rt-pausa') || 10;
+  var modo = leerLocal('rt-modo') === 'descanso' ? 'descanso' : 'foco';
+  var ultimoTema = leerLocal('rt-ultimo-tema') || null;
+  var pista = '';
   var CIRC = 2 * Math.PI * 52;
   $('avance').style.strokeDasharray = CIRC;
 
@@ -716,13 +726,32 @@
     $('temas').replaceChildren.apply($('temas'), visibles.map(function (t) { return chip(t.n, t.k === k, t.c, function () { if (!timer.corriendo) elegirTema(t.k); }); }));
     actualizarReloj();
   }
+  // Las duraciones cambian según la pestaña: foco (30/45/60) o descanso (5/10/15/20).
   function pintarDuraciones() {
-    $('durs').replaceChildren.apply($('durs'), [30, 45, 60].map(function (m) { return chip(m + ' min', m === durMin, null, function () { if (timer.fase) return; durMin = m; guardarLocal('rt-dur', m); pintarDuraciones(); actualizarReloj(); }); }));
+    var esDescanso = modo === 'descanso';
+    var lista = esDescanso ? PAUSAS : FOCOS;
+    var actual = esDescanso ? pausaMin : durMin;
+    $('durs').replaceChildren.apply($('durs'), lista.map(function (m) {
+      var b = chip(m + ' min', m === actual, null, function () {
+        if (timer.fase) return;
+        if (esDescanso) { pausaMin = m; guardarLocal('rt-pausa', m); } else { durMin = m; guardarLocal('rt-dur', m); }
+        pista = '';
+        pintarDuraciones(); actualizarReloj();
+      });
+      b.disabled = !!timer.fase;
+      return b;
+    }));
+    $('m-foco').setAttribute('aria-selected', String(!esDescanso));
+    $('m-descanso').setAttribute('aria-selected', String(esDescanso));
+    $('m-foco').disabled = $('m-descanso').disabled = !!timer.fase;
   }
-  function pintarPausas() {
-    var ultima = pausaPorTema[timer.tema];
-    $('pausas').replaceChildren.apply($('pausas'), PAUSAS.map(function (m) { return chip(m + ' min', m === ultima, null, function () { empezarDescanso(m); }); }));
+  function cambiarModo(m) {
+    if (timer.fase || m === modo) return;
+    modo = m; guardarLocal('rt-modo', m); pista = '';
+    pintarDuraciones(); actualizarReloj();
   }
+  $('m-foco').addEventListener('click', function () { cambiarModo('foco'); });
+  $('m-descanso').addEventListener('click', function () { cambiarModo('descanso'); });
 
   // fase: null | 'estudio' | 'descanso'; tiempos por marca de reloj para sobrevivir al bloqueo de pantalla
   var timer = leerLocal('rt-timer') || { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
@@ -733,18 +762,19 @@
   function mmss(ms) { var s = Math.ceil(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
 
   function actualizarReloj() {
-    var total = timer.fase ? timer.totalMs : durMin * 60000;
+    var total = timer.fase ? timer.totalMs : (modo === 'descanso' ? pausaMin : durMin) * 60000;
     var r = timer.fase ? restante() : total;
     $('reloj-t').textContent = mmss(r);
     $('avance').style.strokeDashoffset = String(CIRC * (1 - (total ? (total - r) / total : 0)));
-    $('reloj').classList.toggle('descanso', timer.fase === 'descanso');
+    $('reloj').classList.toggle('descanso', timer.fase === 'descanso' || (!timer.fase && modo === 'descanso'));
     var tema = TEMAS.filter(function (t) { return t.k === (timer.tema || temaElegido); })[0];
-    var eligiendo = timer.fase === 'elegir';
-    $('elegir-pausa').hidden = !eligiendo;
-    $('t-btns').hidden = eligiendo;
-    $('reloj-f').textContent = eligiendo ? 'Elige tu descanso' : timer.fase === 'descanso' ? 'Descanso' : timer.fase ? (timer.corriendo ? 'En foco · ' : 'En pausa · ') + (tema ? tema.n : '') : 'Listo para partir';
+    $('reloj-f').textContent = timer.fase === 'descanso' ? (timer.corriendo ? 'Descansando' : 'Descanso en pausa')
+      : timer.fase ? (timer.corriendo ? 'En foco · ' : 'En pausa · ') + (tema ? tema.n : '')
+      : modo === 'descanso' ? 'Descanso listo' : 'Listo para partir';
+    $('pista').textContent = pista;
     $('t-iniciar').textContent = timer.corriendo ? 'Pausar' : timer.fase ? 'Seguir' : 'Iniciar';
     $('t-guardar').disabled = timer.fase !== 'estudio';
+    $('t-guardar').hidden = modo === 'descanso' && !timer.fase;
     $('t-reset').disabled = !timer.fase;
     if (timer.fase && timer.corriendo && r <= 0) terminarFase();
   }
@@ -755,16 +785,22 @@
   function sonar() {
     try {
       var ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [0, 0.35, 0.7].forEach(function (t) {
-        var o = ctx.createOscillator(); var g = ctx.createGain();
-        o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
-        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
-        g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.25);
-        o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
-      });
+      // Tres rondas de pitidos en dos tonos, a volumen alto (unos 4 segundos).
+      for (var ronda = 0; ronda < 3; ronda++) {
+        [0, 0.22, 0.44, 0.66].forEach(function (t, i) {
+          var ini = ctx.currentTime + ronda * 1.4 + t;
+          var o = ctx.createOscillator(); var g = ctx.createGain();
+          o.type = 'square';
+          o.frequency.value = i % 2 ? 1320 : 990;
+          o.connect(g); g.connect(ctx.destination);
+          g.gain.setValueAtTime(0.0001, ini);
+          g.gain.exponentialRampToValueAtTime(0.9, ini + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, ini + 0.18);
+          o.start(ini); o.stop(ini + 0.2);
+        });
+      }
     } catch (e) {}
-    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+    try { if (navigator.vibrate) navigator.vibrate([600, 200, 600, 200, 600, 400, 900]); } catch (e) {}
   }
 
   // Alarmas en Google Calendar: suenan en el celular aunque la pantalla esté bloqueada o la app cerrada.
@@ -821,7 +857,7 @@
     else if (timer.fase === 'descanso') notificar('☕ Descanso', Object.assign(base, { body: 'Vuelves al foco a las ' + horaCorta(timer.finMs) + '.' }));
   }
   function avisoFin(titulo, cuerpo) {
-    notificar(titulo, { tag: 'predyctor-fin', body: cuerpo, renotify: true, requireInteraction: true, vibrate: [300, 150, 300, 150, 600] });
+    notificar(titulo, { tag: 'predyctor-fin', body: cuerpo, renotify: true, requireInteraction: true, vibrate: [600, 200, 600, 200, 600, 400, 900] });
   }
   function cerrarAvisoEnCurso() {
     if (!puedeNotificar) return;
@@ -834,22 +870,29 @@
   }
 
   $('t-iniciar').addEventListener('click', function () {
-    if (timer.fase === 'elegir') return;
     if (!timer.fase) {
-      var ahora = new Date();
-      timer = { fase: 'estudio', corriendo: true, totalMs: durMin * 60000, finMs: Date.now() + durMin * 60000, restanteMs: 0, tema: temaElegido, inicio: String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0') };
+      pista = '';
+      if (modo === 'descanso') {
+        if (ultimoTema) { pausaPorTema[ultimoTema] = pausaMin; guardarLocal('rt-pausas', pausaPorTema); }
+        timer = { fase: 'descanso', corriendo: true, totalMs: pausaMin * 60000, finMs: Date.now() + pausaMin * 60000, restanteMs: 0, tema: ultimoTema, inicio: '' };
+      } else {
+        var ahora = new Date();
+        timer = { fase: 'estudio', corriendo: true, totalMs: durMin * 60000, finMs: Date.now() + durMin * 60000, restanteMs: 0, tema: temaElegido, inicio: String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0') };
+      }
       pedirWake(); programarAlarmas(); pedirPermisoYAvisar();
     } else if (timer.corriendo) {
       timer.restanteMs = restante(); timer.corriendo = false; soltarWake(); cancelarAlarmas(); cerrarAvisoEnCurso();
     } else {
       timer.finMs = Date.now() + timer.restanteMs; timer.corriendo = true; pedirWake(); programarAlarmas(); pedirPermisoYAvisar();
     }
-    persistir(); actualizarReloj(); arrancarTick();
+    persistir(); pintarDuraciones(); actualizarReloj(); arrancarTick();
   });
+  // Reiniciar deja la misma pestaña (foco o descanso) lista para volver a elegir.
   $('t-reset').addEventListener('click', function () {
     cancelarAlarmas(); cerrarAvisoEnCurso();
     timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
-    persistir(); soltarWake(); actualizarReloj();
+    pista = '';
+    persistir(); soltarWake(); pintarDuraciones(); actualizarReloj();
   });
   $('t-guardar').addEventListener('click', function () {
     var hechos = Math.round((timer.totalMs - restante()) / 60000);
@@ -857,40 +900,32 @@
     guardarEstudio(timer.tema, hechos, timer.inicio);
     cancelarAlarmas(); cerrarAvisoEnCurso();
     timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
-    persistir(); soltarWake(); actualizarReloj();
+    persistir(); soltarWake(); pintarDuraciones(); actualizarReloj();
   });
   function terminarFase() {
     sonar();
     if (timer.fase === 'estudio') {
       guardarEstudio(timer.tema, Math.round(timer.totalMs / 60000), timer.inicio);
-      // El descanso no parte solo: Tito lo elige (o lo salta) al terminar cada tanda.
+      // El descanso no parte solo: queda abierta la pestaña Descanso para elegir y tocar Iniciar.
       cancelarAlarmas(); cerrarAvisoEnCurso();
-      timer = { fase: 'elegir', corriendo: false, totalMs: timer.totalMs, finMs: 0, restanteMs: 0, tema: timer.tema, inicio: '' };
+      ultimoTema = timer.tema; guardarLocal('rt-ultimo-tema', ultimoTema);
+      if (pausaPorTema[ultimoTema]) { pausaMin = pausaPorTema[ultimoTema]; guardarLocal('rt-pausa', pausaMin); }
+      timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+      modo = 'descanso'; guardarLocal('rt-modo', modo);
+      pista = 'Tanda guardada. Elige tu descanso y toca Iniciar, o vuelve a Foco.';
       soltarWake();
-      pintarPausas();
       aviso('Tanda guardada. Elige tu descanso.');
       avisoFin('✅ Fin del estudio', 'Tanda guardada. Abre Predyctor y elige cuánto descansas.');
     } else {
       cancelarAlarmas(); cerrarAvisoEnCurso();
       avisoFin('🐆 Fin del descanso', '¿Otra tanda? Toca para volver a Predyctor.');
       timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+      modo = 'foco'; guardarLocal('rt-modo', modo);
       soltarWake();
       aviso('Fin del descanso. ¿Otra tanda?');
     }
-    persistir(); actualizarReloj();
+    persistir(); pintarDuraciones(); actualizarReloj();
   }
-  function empezarDescanso(m) {
-    if (timer.fase !== 'elegir') return;
-    pausaPorTema[timer.tema] = m; guardarLocal('rt-pausas', pausaPorTema);
-    timer = { fase: 'descanso', corriendo: true, totalMs: m * 60000, finMs: Date.now() + m * 60000, restanteMs: 0, tema: timer.tema, inicio: '' };
-    pedirWake(); programarAlarmas(); pedirPermisoYAvisar();
-    persistir(); actualizarReloj(); arrancarTick();
-  }
-  $('t-sin-pausa').addEventListener('click', function () {
-    timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
-    persistir(); actualizarReloj();
-    aviso('Sin descanso. Cuando quieras, otra tanda.');
-  });
   function guardarEstudio(tema, minutos, inicio) {
     guardarEstudioLocal(tema, minutos, inicio);
     pintarSemana(resumenSemana(hoyKey()));
@@ -1021,7 +1056,14 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   if (!leerLocal('rt-clave')) { quitarSplash(); mostrarVincular(); return; }
   pintarDuraciones();
-  if (timer.fase === 'elegir') pintarPausas();
+  if (timer.fase === 'elegir') {
+    ultimoTema = timer.tema;
+    timer = { fase: null, corriendo: false, finMs: 0, restanteMs: 0, totalMs: 0, tema: null, inicio: '' };
+    modo = 'descanso'; persistir(); guardarLocal('rt-modo', modo);
+  }
+  if (timer.fase === 'descanso') modo = 'descanso';
+  else if (timer.fase === 'estudio') modo = 'foco';
+  pintarDuraciones();
   actualizarReloj();
   if (timer.fase) arrancarTick();
   abrirDB().then(function () {
