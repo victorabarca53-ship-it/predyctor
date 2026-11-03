@@ -192,6 +192,7 @@ function agendaDias_(key, n) {
       .filter((e) => e.isAllDayEvent() || Utilities.formatDate(e.getStartTime(), TZ, 'yyyy-MM-dd') === k)
       .map((e) => ({
         id: e.getId(),
+        avisos: e.getPopupReminders(),
         titulo: e.getTitle(),
         todoElDia: e.isAllDayEvent(),
         inicio: e.isAllDayEvent() ? '' : Utilities.formatDate(e.getStartTime(), TZ, 'HH:mm'),
@@ -248,6 +249,11 @@ function aplicarEdicion_(cal, op) {
   if (op.accion === 'saltar') { ev.deleteEvent(); return; }
   if (op.accion !== 'editar') throw new Error('acción desconocida');
   if (op.titulo) ev.setTitle(String(op.titulo).slice(0, 80));
+  if (Array.isArray(op.avisos)) {
+    const minutos = op.avisos.map(Number).filter((m) => m >= 0 && m <= 1440).slice(0, 5);
+    ev.removeAllReminders();
+    minutos.forEach((m) => ev.addPopupReminder(m));
+  }
   if (op.nuevoInicioMs && !ev.isAllDayEvent()) {
     const a = Number(op.nuevoInicioMs);
     const b = Number(op.nuevoFinMs);

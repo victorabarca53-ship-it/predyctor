@@ -27,13 +27,14 @@ const props = {};
 const eventos = [];
 let seq = 0;
 function evento(titulo, ini, fin, opts = {}) {
-  const e = { id: opts.id || 'ev' + (++seq), titulo, ini: new Date(ini), fin: new Date(fin), desc: opts.description || '', todo: !!opts.todo, borrado: false };
+  const e = { id: opts.id || 'ev' + (++seq), titulo, ini: new Date(ini), fin: new Date(fin), desc: opts.description || '', todo: !!opts.todo, borrado: false, avisos: [10] };
   return {
     _e: e,
     getId: () => e.id, getTitle: () => e.titulo, isAllDayEvent: () => e.todo,
     getStartTime: () => e.ini, getEndTime: () => e.fin, getDescription: () => e.desc,
     setTitle: (t) => { e.titulo = t; }, setTime: (a, b) => { e.ini = a; e.fin = b; },
-    deleteEvent: () => { e.borrado = true; }, removeAllReminders() {}, addPopupReminder() {},
+    deleteEvent: () => { e.borrado = true; }, removeAllReminders: () => { e.avisos = []; }, addPopupReminder: (m) => { e.avisos.push(m); },
+    getPopupReminders: () => e.avisos.slice(),
   };
 }
 const cal = {
@@ -103,6 +104,9 @@ ok(r.data.aplicados[0] === 'e1' && eventos[0]._e.titulo === 'Cerro' && eventos[0
 ok(eventos[1]._e.titulo === 'Trote', 'el resto de la serie sigue igual');
 r = post({ fn: 'editarAgenda', args: [{ ops: [{ opId: 'e1', accion: 'editar', id: 'serie-a', inicioMs: base, titulo: 'Otra' }] }], clave });
 ok(r.data.aplicados[0] === 'e1' && eventos[0]._e.titulo === 'Cerro', 'opId repetido no se aplica dos veces');
+ok(Array.isArray(post({ fn: 'sync', args: [{ ops: [] }], clave }).data.agenda[hoy][0].avisos), 'agenda trae los avisos');
+r = post({ fn: 'editarAgenda', args: [{ ops: [{ opId: 'e9', accion: 'editar', id: 'serie-a', inicioMs: base + 3600000, avisos: [30, 15] }] }], clave });
+ok(eventos[0]._e.avisos.join() === '30,15' && eventos[1]._e.avisos.join() === '10', 'avisos solo en ese día');
 r = post({ fn: 'editarAgenda', args: [{ ops: [{ opId: 'e2', accion: 'saltar', id: 'serie-a', inicioMs: base + 86400000 }] }], clave });
 ok(eventos[1]._e.borrado, 'saltar borra solo ese día');
 r = post({ fn: 'editarAgenda', args: [{ ops: [{ opId: 'e3', accion: 'editar', id: 'no-existe', inicioMs: base, titulo: 'x', tituloOriginal: 'Yoga' }] }], clave });

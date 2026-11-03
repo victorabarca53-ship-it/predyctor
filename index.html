@@ -179,6 +179,10 @@
   .hoja-in .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .hoja-in .acciones .primario { grid-column: 1 / -1; }
   .btn.peligro { color: var(--bad); }
+  .hoja-in .avisos-op { display: flex; flex-wrap: wrap; gap: 6px; }
+  .hoja-in .avisos-op .chip { padding: 7px 11px; font-size: 0.85rem; }
+  .hoja-in .campo-t { font-weight: 500; font-size: 0.9rem; margin: 0 0 -6px; }
+  .agenda .aviso-txt { display: block; font-size: 0.74rem; color: var(--muted); margin-top: 2px; }
   .hoja-in .error { color: var(--bad); font-size: 0.82rem; min-height: 1em; margin: -6px 0 0; }
 
   /* Checks */
@@ -300,6 +304,8 @@
         <label>Desde <input type="time" id="he-ini" step="300"></label>
         <label>Hasta <input type="time" id="he-fin" step="300"></label>
       </div>
+      <p class="campo-t" id="he-aviso-t">Avisarme antes</p>
+      <div class="avisos-op" id="he-avisos" role="radiogroup" aria-labelledby="he-aviso-t"></div>
       <p class="error" id="he-error"></p>
       <div class="acciones">
         <button type="button" class="btn primario" id="he-guardar">Guardar cambios</button>
@@ -736,6 +742,7 @@
     if (op.accion === 'saltar') { lista.splice(i, 1); return; }
     var e = Object.assign({}, lista[i]);
     if (op.titulo) e.titulo = op.titulo;
+    if (op.avisos) e.avisos = op.avisos.slice();
     if (op.nuevoInicioMs && !e.todoElDia) {
       e.inicioMs = op.nuevoInicioMs; e.finMs = op.nuevoFinMs;
       e.inicio = hhmmDe(op.nuevoInicioMs); e.fin = hhmmDe(op.nuevoFinMs);
@@ -758,6 +765,7 @@
       if (op.accion !== 'saltar') {
         if (!op.titulo && previo.titulo) op.titulo = previo.titulo;
         if (!op.nuevoInicioMs && previo.nuevoInicioMs) { op.nuevoInicioMs = previo.nuevoInicioMs; op.nuevoFinMs = previo.nuevoFinMs; }
+        if (!op.avisos && previo.avisos) op.avisos = previo.avisos;
       }
     }
     db.agendaOps.push(op);
@@ -784,6 +792,38 @@
     return new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms));
   }
 
+  // Avisos de Calendar: suenan con el teléfono bloqueado. [] = sin aviso.
+  var OPCIONES_AVISO = [
+    { n: 'Sin aviso', v: [] },
+    { n: '15 min', v: [15] },
+    { n: '30 min', v: [30] },
+    { n: '30 y 15 min', v: [30, 15] }
+  ];
+  function claveAvisos(a) { return a ? a.slice().sort(function (x, y) { return y - x; }).join(',') : null; }
+  function textoAvisos(a) {
+    if (!a) return '';
+    if (!a.length) return 'Sin aviso';
+    return 'Aviso ' + a.slice().sort(function (x, y) { return y - x; }).join(' y ') + ' min antes';
+  }
+  var avisoElegido = null;
+  function pintarAvisos(actual) {
+    var cont = $('he-avisos'), clave = claveAvisos(actual);
+    avisoElegido = null;
+    cont.replaceChildren();
+    OPCIONES_AVISO.forEach(function (o) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.setAttribute('role', 'radio');
+      b.textContent = o.n;
+      b.setAttribute('aria-checked', String(clave === claveAvisos(o.v)));
+      b.setAttribute('aria-pressed', String(clave === claveAvisos(o.v)));
+      b.addEventListener('click', function () {
+        avisoElegido = o.v.slice();
+        cont.querySelectorAll('.chip').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-checked', String(x === b)); });
+      });
+      cont.appendChild(b);
+    });
+  }
+
   var editando = null;
   function abrirEdicion(e, fecha) {
     editando = { e: e, fecha: fecha };
@@ -793,6 +833,7 @@
     $('he-ini').value = e.todoElDia ? '' : e.inicio;
     $('he-fin').value = e.todoElDia ? '' : e.fin;
     $('he-error').textContent = '';
+    pintarAvisos(e.avisos);
     var vistos = {}, sug = $('he-sugeridas');
     sug.replaceChildren();
     Object.keys(db.agenda).sort().forEach(function (k) {
@@ -838,7 +879,8 @@
         op.nuevoInicioMs = ini; op.nuevoFinMs = fin;
       }
     }
-    if (!op.titulo && !op.nuevoInicioMs) { cerrarEdicion(); return; }
+    if (avisoElegido && claveAvisos(avisoElegido) !== claveAvisos(e.avisos)) op.avisos = avisoElegido;
+    if (!op.titulo && !op.nuevoInicioMs && !op.avisos) { cerrarEdicion(); return; }
     encolarEdicion(op);
     cerrarEdicion();
     aviso(navigator.onLine ? 'Cambio guardado. Lo paso a tu Calendar.' : 'Cambio guardado. Lo paso a tu Calendar cuando vuelva la señal.');
@@ -964,6 +1006,11 @@
         var m = document.createElement('span');
         m.className = 'marca'; m.textContent = 'por subir';
         t.appendChild(m);
+      }
+      if (e.avisos && e.avisos.length) {
+        var av = document.createElement('span');
+        av.className = 'aviso-txt'; av.textContent = textoAvisos(e.avisos);
+        t.appendChild(av);
       }
       li.append(h, t);
       var esAlarma = (e.titulo || '').charAt(0) === '\u23F0';

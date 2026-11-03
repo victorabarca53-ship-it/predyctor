@@ -17,7 +17,7 @@ La hice para mi propia rutina: trabajo en terreno, muchas veces sin cobertura, y
 ## Qué hace
 
 - **Hoy:** la agenda de Google Calendar, cuatro checks de hábitos, minutos de Instagram y postulaciones del día, con una racha de los últimos 14 días.
-- **Editar mi día:** tocas una actividad y la mueves de hora, la cambias por otra o la saltas. Solo afecta ese día; la serie del calendario queda igual. También funciona sin señal.
+- **Editar mi día:** tocas una actividad y la mueves de hora, la cambias por otra, la saltas o eliges cuándo avisarte (15 o 30 minutos antes, o los dos). Solo afecta ese día; la serie del calendario queda igual. También funciona sin señal.
 - **Temporizador:** pestañas Foco (30, 45 o 60 min) y Descanso (5 a 20 min). El descanso nunca parte solo: lo eliges tú. Al terminar una tanda suena, vibra y deja una alarma en Calendar que suena aunque el teléfono esté bloqueado.
 - **Progreso:** puntaje semanal de 0 a 100, horas por tema contra la meta, Instagram por día y un mapa de constancia de 8 semanas.
 - **Colores:** cuatro paletas (Sendero, Pacífico, Atacama y Cordillera), cada una con modo claro, oscuro o automático.
@@ -66,6 +66,7 @@ python3 -m http.server 8765 --bind 127.0.0.1      # en otra terminal
 node tests/e2e/offline.test.js                    # modo avión, cola y sincronización al volver la señal
 node tests/e2e/descanso.test.js                   # Foco / Descanso
 node tests/e2e/editar.test.js                     # Editar mi día con y sin señal
+node tests/e2e/avisos.test.js                     # Avisarme antes
 node tests/e2e/paletas.test.js                    # paletas y modos
 node tests/capturas.js                            # regenera las capturas de este README con datos de demo
 ```

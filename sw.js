@@ -1,5 +1,5 @@
 // Sube la versión cada vez que cambien los archivos de la app.
-const CACHE = 'predyctor-v9';
+const CACHE = 'predyctor-v10';
 const SHELL = [
   './', './index.html', './config.js', './manifest.webmanifest', './favicon.ico',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
