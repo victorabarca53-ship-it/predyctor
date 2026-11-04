@@ -52,13 +52,20 @@ const ctx = {
   SpreadsheetApp: { getActiveSpreadsheet: () => libro },
   CalendarApp: { getDefaultCalendar: () => cal },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) },
-  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+  LockService: { getScriptLock: () => ({ waitLock() {}, tryLock() { return true; }, releaseLock() {} }) },
+  ScriptApp: {
+    getProjectTriggers: () => ctx.__activadores.slice(),
+    newTrigger: (fn) => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => { ctx.__activadores.push({ getHandlerFunction: () => fn }); } }) }) }),
+    deleteTrigger: (t) => { ctx.__activadores = ctx.__activadores.filter((x) => x !== t); },
+  },
+  UrlFetchApp: { fetch: (url, o) => { ctx.__fetches.push({ url, o }); return { getResponseCode: () => 201 }; } },
+  __activadores: [], __fetches: [],
   Session: { getActiveUser: () => ({ getEmail: () => ctx.__activo }), getEffectiveUser: () => ({ getEmail: () => 'dueno@x.com' }) },
   Utilities: {
     formatDate: fmt,
     parseDate: (s, tz) => new Date(s.replace(' ', 'T') + ':00-03:00'),
     computeDigest: () => Array.from({ length: 32 }, () => Math.floor(Math.random() * 256) - 128),
-    getUuid: () => 'u', DigestAlgorithm: { SHA_256: 1 },
+    getUuid: () => 'u' + (++seq), DigestAlgorithm: { SHA_256: 1 }, sleep: () => {},
   },
   ContentService: { createTextOutput: (t) => ({ t, setMimeType() { return this; } }), MimeType: { JSON: 1 } },
   HtmlService: { createHtmlOutput: (h) => ({ h, setTitle() { return this; }, setXFrameOptionsMode() { return this; } }), XFrameOptionsMode: { DEFAULT: 1 } },
@@ -121,3 +128,20 @@ post({ fn: 'cancelarAlarma', args: [idAl], clave });
 ok(!cal.getEventById(idAl), 'cancela alarma');
 post({ fn: 'cancelarAlarma', args: ['serie-a'], clave });
 ok(!eventos[0]._e.borrado, 'cancelarAlarma no borra eventos que no son alarmas');
+
+// Avisos push
+const auth = 'vapid t=aaa.bbb.ccc, k=PUB_key-1';
+const ep = 'https://fcm.googleapis.com/fcm/send/xyz';
+ok(post({ fn: 'programarPush', args: [{ endpoint: 'https://evil.example.com/x', auth, finMs: Date.now() + 60000 }], clave }).ok === false, 'push rechaza destinos que no son servicios push');
+ok(post({ fn: 'programarPush', args: [{ endpoint: ep, auth: 'Bearer x', finMs: Date.now() + 60000 }], clave }).ok === false, 'push rechaza firma inválida');
+const p1 = post({ fn: 'programarPush', args: [{ endpoint: ep, auth, finMs: Date.now() + 30000 }], clave });
+const p2 = post({ fn: 'programarPush', args: [{ endpoint: ep, auth, finMs: Date.now() + 40 * 60000 }], clave });
+ok(p1.ok && p2.ok && ctx.__activadores.length === 1, 'programa avisos y crea un solo activador');
+const p3 = post({ fn: 'programarPush', args: [{ endpoint: ep, auth, finMs: Date.now() + 20000 }], clave });
+post({ fn: 'cancelarPush', args: [p3.data], clave });
+vm.runInContext('enviarPushes()', ctx);
+ok(ctx.__fetches.length === 1 && ctx.__fetches[0].o.headers.Authorization === auth && ctx.__fetches[0].o.headers.Urgency === 'high', 'envía solo el aviso que vence (y no el cancelado)');
+ok(ctx.__activadores.length === 1, 'el activador sigue mientras quedan avisos');
+post({ fn: 'cancelarPush', args: [p2.data], clave });
+vm.runInContext('enviarPushes()', ctx);
+ok(ctx.__activadores.length === 0 && ctx.__fetches.length === 1, 'sin avisos pendientes se borra el activador');

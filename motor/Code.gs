@@ -6,11 +6,12 @@
  *   - Devuelve el historial y la agenda de Google Calendar de los próximos 7 días.
  *   - Crea y borra las alarmas del temporizador como eventos de Calendar (suenan con el teléfono bloqueado).
  *   - Aplica los cambios de "Editar mi día" solo a la instancia de ese día.
+ *   - Manda avisos push al teléfono cuando termina el temporizador, aunque la app esté en segundo plano.
  *
  * Cómo se instala: ver docs/GUIA-PLANTILLA.md. Resumen:
  *   1. Crea una hoja de Google y abre Extensiones → Apps Script. Pega este archivo.
  *   2. Ajusta CONFIG (zona horaria, temas y la URL donde publicaste la app).
- *   3. Ejecuta configurar() una vez y acepta los permisos.
+ *   3. Ejecuta configurar() y activarAvisosPush() una vez y acepta los permisos.
  *   4. Implementa dos veces como app web:
  *        "vincular": Ejecutar como yo · Acceso: solo yo        → abre la página que entrega la clave.
  *        "motor":    Ejecutar como yo · Acceso: cualquier persona → la app le habla por doPost con la clave.
@@ -71,6 +72,8 @@ function doPost(e) {
     editarAgenda: editarAgenda,
     programarAlarma: programarAlarma,
     cancelarAlarma: cancelarAlarma,
+    programarPush: programarPush,
+    cancelarPush: cancelarPush,
   };
   let res;
   try {
@@ -291,6 +294,101 @@ function limpiarAlarmasViejas_(cal) {
   cal.getEvents(new Date(hasta.getTime() - 7 * 86400000), hasta)
     .filter((e) => e.getDescription() === MARCA_ALARMA)
     .forEach((e) => e.deleteEvent());
+}
+
+/* ---------- Avisos push ---------- */
+
+// La app firma el aviso en el teléfono (VAPID) y aquí solo se guarda adónde mandarlo y cuándo.
+// Un activador cada minuto lo envía a la hora; sin avisos pendientes, el activador se borra solo.
+// Requiere los permisos "conectarse a un servicio externo" y "administrar activadores":
+// ejecuta activarAvisosPush() una vez desde el editor y acepta.
+const PUSH_DESTINOS = /^https:\/\/(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.notify\.windows\.com|web\.push\.apple\.com)\//;
+const PROP_PUSH = 'PUSH_COLA';
+
+function activarAvisosPush() {
+  ScriptApp.getProjectTriggers();
+  UrlFetchApp.fetch('https://fcm.googleapis.com/', { muteHttpExceptions: true });
+  return 'Listo: avisos push activados.';
+}
+
+function programarPush(p) {
+  const fin = Number(p && p.finMs);
+  const ahora = Date.now();
+  if (!(fin > ahora - 60000 && fin < ahora + 6 * 3600000)) throw new Error('Hora de aviso fuera de rango');
+  const endpoint = String((p && p.endpoint) || '');
+  const auth = String((p && p.auth) || '');
+  if (endpoint.length > 1000 || !PUSH_DESTINOS.test(endpoint)) throw new Error('Destino de aviso no permitido');
+  if (auth.length > 2000 || !/^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=[\w-]+$/.test(auth)) throw new Error('Firma de aviso inválida');
+  const id = Utilities.getUuid();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const cola = colaPush_().filter((x) => x.finMs > ahora - 3600000).slice(-20);
+    cola.push({ id: id, endpoint: endpoint, auth: auth, finMs: fin });
+    guardarColaPush_(cola);
+  } finally {
+    lock.releaseLock();
+  }
+  asegurarActivadorPush_();
+  return id;
+}
+
+function cancelarPush(id) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    guardarColaPush_(colaPush_().filter((x) => x.id !== String(id || '')));
+  } finally {
+    lock.releaseLock();
+  }
+  return true;
+}
+
+// Lo llama el activador cada minuto. Si un aviso vence dentro del próximo minuto, espera y lo manda justo a la hora.
+function enviarPushes() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  let pendientes;
+  try {
+    const ahora = Date.now();
+    const cola = colaPush_();
+    const toca = cola.filter((x) => x.finMs <= ahora + 60000).sort((a, b) => a.finMs - b.finMs);
+    pendientes = cola.filter((x) => x.finMs > ahora + 60000);
+    guardarColaPush_(pendientes);
+    toca.forEach((x) => {
+      const falta = x.finMs - Date.now();
+      if (falta > 0) Utilities.sleep(Math.min(falta, 60000));
+      try {
+        UrlFetchApp.fetch(x.endpoint, {
+          method: 'post',
+          headers: { TTL: '900', Urgency: 'high', Authorization: x.auth },
+          payload: '',
+          muteHttpExceptions: true,
+        });
+      } catch (err) {
+        // sin red o destino caído: la alarma de Calendar queda de respaldo
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  if (!pendientes.length) borrarActivadorPush_();
+}
+
+function colaPush_() {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(PROP_PUSH) || '[]'); } catch (e) { return []; }
+}
+function guardarColaPush_(cola) {
+  PropertiesService.getScriptProperties().setProperty(PROP_PUSH, JSON.stringify(cola));
+}
+function asegurarActivadorPush_() {
+  const hay = ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === 'enviarPushes');
+  if (!hay) ScriptApp.newTrigger('enviarPushes').timeBased().everyMinutes(1).create();
+}
+function borrarActivadorPush_() {
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'enviarPushes')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
 }
 
 /* ---------- Ayudantes ---------- */

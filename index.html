@@ -1209,16 +1209,28 @@
     var pedidos = t.fase === 'estudio'
       ? [['estudio', t.finMs, 'Fin del estudio · ' + nombreTema(t.tema)]]
       : [['descanso', t.finMs, 'Fin del descanso']];
+    t.pushes = t.pushes || {};
     pedidos.forEach(function (p) {
       rpc('programarAlarma', p[1], p[2]).then(function (id) {
         if (timer === t && t.corriendo && t.alarmaSeq === seq) { t.alarmas[p[0]] = id; persistir(); }
         else rpc('cancelarAlarma', id).catch(function () {});
       }).catch(function () { aviso('No pude programar la alarma en Calendar.'); });
+      var cuerpo = p[0] === 'estudio' ? 'Tanda terminada. Elige tu descanso cuando quieras.' : 'Se acabó el descanso. Vuelve al foco cuando quieras.';
+      programarPush(p[1], '⏰ ' + p[2], cuerpo).then(function (id) {
+        if (!id) return;
+        if (timer === t && t.corriendo && t.alarmaSeq === seq) { t.pushes[p[0]] = id; persistir(); }
+        else rpc('cancelarPush', id).catch(function () {});
+      });
     });
   }
   function cancelarAlarmas(cuales) {
     var a = timer.alarmas || {};
+    var ps = timer.pushes || {};
     timer.alarmaSeq = (timer.alarmaSeq || 0) + 1;
+    (cuales || ['estudio', 'descanso']).forEach(function (k) {
+      if (ps[k]) { rpc('cancelarPush', ps[k]).catch(function () {}); delete ps[k]; }
+    });
+    if (idb) kvSet('push', null);
     (cuales || ['estudio', 'descanso']).forEach(function (k) {
       if (a[k]) {
         var id = a[k];
@@ -1239,6 +1251,81 @@
       return reg.showNotification(titulo, Object.assign({ icon: 'icon-192.png', badge: 'icon-192.png', lang: 'es-CL' }, opciones));
     }).catch(function () {});
   }
+
+  /* ---------- Push: el motor despierta al teléfono cuando termina la fase ---------- */
+  // Android congela la app en segundo plano: el pitido no puede sonar. Una notificación push sí llega,
+  // porque la entrega el sistema y despierta al service worker. Las claves VAPID se crean en el teléfono
+  // y la firma también: el motor solo guarda el destino y lo llama a la hora.
+  var pushOk = puedeNotificar && 'PushManager' in window && !!(window.crypto && crypto.subtle);
+  function b64u(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function b64uTxt(t) { return b64u(new TextEncoder().encode(t)); }
+  function bytesDeB64u(t) {
+    t = t.replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    var b = atob(t), u = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+    return u;
+  }
+  function kvGet(k) {
+    return new Promise(function (ok) {
+      try { var g = idb.transaction('kv', 'readonly').objectStore('kv').get(k); g.onsuccess = function () { ok(g.result || null); }; g.onerror = function () { ok(null); }; }
+      catch (e) { ok(null); }
+    });
+  }
+  function kvSet(k, v) {
+    return new Promise(function (ok) {
+      try { var tx = idb.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = function () { ok(true); }; tx.onerror = function () { ok(false); }; }
+      catch (e) { ok(false); }
+    });
+  }
+  function clavesVapid() {
+    return kvGet('vapid').then(function (v) {
+      if (v && v.priv && v.pub) return v;
+      // La clave privada no se puede exportar: queda solo en este teléfono.
+      return crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']).then(function (par) {
+        return crypto.subtle.exportKey('raw', par.publicKey).then(function (raw) {
+          var nuevo = { pub: b64u(raw), priv: par.privateKey };
+          return kvSet('vapid', nuevo).then(function () { return nuevo; });
+        });
+      });
+    });
+  }
+  function suscripcionPush() {
+    if (!pushOk || Notification.permission !== 'granted' || !idb) return Promise.resolve(null);
+    return Promise.all([navigator.serviceWorker.ready, clavesVapid()]).then(function (r) {
+      var reg = r[0], v = r[1];
+      return reg.pushManager.getSubscription().then(function (sub) {
+        var k = sub && sub.options && sub.options.applicationServerKey ? b64u(sub.options.applicationServerKey) : null;
+        if (sub && k === v.pub) return { sub: sub, v: v };
+        return (sub ? sub.unsubscribe() : Promise.resolve()).then(function () {
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesDeB64u(v.pub) });
+        }).then(function (s2) { return { sub: s2, v: v }; });
+      });
+    }).catch(function () { return null; });
+  }
+  function firmaVapid(endpoint, v, expS) {
+    var cab = b64uTxt(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
+    var cuerpo = b64uTxt(JSON.stringify({ aud: new URL(endpoint).origin, exp: expS, sub: location.origin + location.pathname }));
+    return crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, v.priv, new TextEncoder().encode(cab + '.' + cuerpo)).then(function (firma) {
+      return 'vapid t=' + cab + '.' + cuerpo + '.' + b64u(firma) + ', k=' + v.pub;
+    });
+  }
+  // Devuelve el id del aviso en el motor, o null si este teléfono no puede recibir push.
+  function programarPush(finMs, titulo, cuerpo) {
+    return suscripcionPush().then(function (x) {
+      if (!x) return null;
+      return kvSet('push', { titulo: titulo, cuerpo: cuerpo, finMs: finMs }).then(function () {
+        return firmaVapid(x.sub.endpoint, x.v, Math.floor(finMs / 1000) + 3600);
+      }).then(function (auth) {
+        return rpc('programarPush', { endpoint: x.sub.endpoint, auth: auth, finMs: finMs });
+      });
+    }).catch(function () { return null; });
+  }
+
   function avisoEnCurso() {
     if (!timer.corriendo) return;
     var base = { tag: 'predyctor-en-curso', silent: true, renotify: false, timestamp: timer.finMs };

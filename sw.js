@@ -1,5 +1,5 @@
 // Sube la versión cada vez que cambien los archivos de la app.
-const CACHE = 'predyctor-v10';
+const CACHE = 'predyctor-v11';
 const SHELL = [
   './', './index.html', './config.js', './manifest.webmanifest', './favicon.ico',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png',
@@ -16,6 +16,44 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
   self.clients.claim();
+});
+
+// Aviso de fin de fase enviado por el motor (push sin contenido). El texto lo dejó la app en IndexedDB.
+function leerPush() {
+  return new Promise((ok) => {
+    try {
+      const req = indexedDB.open('predyctor');
+      req.onsuccess = () => {
+        try {
+          const g = req.result.transaction('kv', 'readonly').objectStore('kv').get('push');
+          g.onsuccess = () => ok(g.result || null);
+          g.onerror = () => ok(null);
+        } catch (e) { ok(null); }
+      };
+      req.onerror = () => ok(null);
+    } catch (e) { ok(null); }
+  });
+}
+function borrarPush() {
+  try {
+    const req = indexedDB.open('predyctor');
+    req.onsuccess = () => { try { req.result.transaction('kv', 'readwrite').objectStore('kv').put(null, 'push'); } catch (e) {} };
+  } catch (e) {}
+}
+self.addEventListener('push', (e) => {
+  e.waitUntil(Promise.all([leerPush(), self.clients.matchAll({ type: 'window', includeUncontrolled: true })]).then(([p, cs]) => {
+    // Con la app a la vista, ella misma suena: no hace falta otra notificación.
+    if (cs.some((c) => c.visibilityState === 'visible')) return;
+    const vigente = p && Math.abs(Date.now() - p.finMs) < 20 * 60000;
+    if (!vigente) return; // aviso cancelado o viejo
+    borrarPush();
+    return self.registration.showNotification(p.titulo || '⏰ Predyctor', {
+      body: p.cuerpo || 'Se acabó el tiempo.',
+      tag: 'predyctor-fin', renotify: true, requireInteraction: true,
+      vibrate: [600, 200, 600, 200, 600, 400, 900],
+      icon: 'icon-192.png', badge: 'icon-192.png', lang: 'es-CL',
+    });
+  }));
 });
 
 // Tocar una notificación del temporizador trae Predyctor al frente (o lo abre).

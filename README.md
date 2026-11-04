@@ -43,7 +43,7 @@ flowchart LR
   - Los cambios de agenda llevan un `opId` y el motor recuerda los que ya aplicó.
 - **El service worker** guarda la app completa, incluidas las fuentes y Chart.js, que van dentro del repo para no depender de CDNs. La navegación pide primero a la red pero no espera más de 3 segundos; si no hay respuesta, abre la copia guardada.
 - **El motor** (`motor/Code.gs`) es una app web de Apps Script. Solo responde a peticiones que traen la clave del equipo vinculado. La clave se entrega en una página a la que solo el dueño de la cuenta puede entrar.
-- **Las alarmas** son eventos cortos de Calendar con aviso a los 0 minutos. Una PWA no puede programar notificaciones con la app cerrada; Calendar sí, y suena con el teléfono bloqueado.
+- **Los avisos del temporizador** llegan por push. Android congela una app web en segundo plano, así que el pitido no puede sonar. Por eso, al iniciar una fase, el teléfono crea sus claves VAPID y firma el aviso. El motor guarda adónde mandarlo, y un activador lo envía a la hora exacta. El service worker despierta y muestra la notificación con vibración. Como respaldo queda un evento corto de Calendar con aviso a los 0 minutos.
 - **Zona horaria.** Los días se calculan con la zona de la configuración, no con la del calendario ni la del teléfono. Así un evento a las 23:30 no se cambia de día.
 
 ## Archivos
